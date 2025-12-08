@@ -177,79 +177,77 @@ def classify_risk(
     data: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
     """
-    Classify risk status (GREEN/YELLOW/RED) based on spacing and moment checks.
-    
-    Returns:
-        (status, details) where details contains ratios and reasons
+    Classify risk status (GREEN/YELLOW/RED).
+
+    GREEN / YELLOW / RED are based on spacing vs table limits.
+    Bending check is kept as advisory information only and does
+    NOT override the spacing-based status.
     """
     details: dict[str, Any] = {
         "spacing_ratio": None,
-        "moment_ratio": None,
+        "moment_ratio": None,  # kept for display as "bending capacity"
         "reasons": [],
     }
-    
-    # Calculate spacing ratio
+
+    # --- Spacing ratio (governing) ---
     spacing_ratio = None
-    if hasattr(out, 'max_spacing_ft') and out.max_spacing_ft is not None and out.max_spacing_ft > 0:
+    if hasattr(out, "max_spacing_ft") and out.max_spacing_ft is not None and out.max_spacing_ft > 0:
         post_spacing = data.get("post_spacing_ft", 0)
         if post_spacing > 0:
             spacing_ratio = post_spacing / out.max_spacing_ft
             details["spacing_ratio"] = spacing_ratio
             details["max_spacing_ft"] = out.max_spacing_ft
-    
-    # Calculate moment ratio
+
+    # --- Bending ratio (advisory only) ---
     moment_ratio = None
-    if (hasattr(out, 'M_allow_ft_lb') and out.M_allow_ft_lb is not None and out.M_allow_ft_lb > 0 and
-        hasattr(out, 'M_demand_ft_lb') and out.M_demand_ft_lb is not None):
+    if (
+        hasattr(out, "M_allow_ft_lb")
+        and out.M_allow_ft_lb is not None
+        and out.M_allow_ft_lb > 0
+        and hasattr(out, "M_demand_ft_lb")
+        and out.M_demand_ft_lb is not None
+    ):
         moment_ratio = out.M_demand_ft_lb / out.M_allow_ft_lb
         details["moment_ratio"] = moment_ratio
         details["M_demand_ft_lb"] = out.M_demand_ft_lb
         details["M_allow_ft_lb"] = out.M_allow_ft_lb
-    
-    # Determine status based on ratios
+
+    # --- Base status from spacing only ---
     status = "GREEN"
-    
-    # Check for RED conditions first (any one triggers RED)
+
+    # RED if spacing is well beyond table limit
     if spacing_ratio is not None and spacing_ratio > 1.15:
         status = "RED"
-        max_spacing = details.get("max_spacing_ft", getattr(out, 'max_spacing_ft', None) or 0)
+        max_spacing = details.get("max_spacing_ft", getattr(out, "max_spacing_ft", None) or 0)
         details["reasons"].append(
-            f"Spacing at {spacing_ratio*100:.0f}% of limit ({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
+            f"Spacing at {spacing_ratio*100:.0f}% of limit "
+            f"({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
         )
-    elif moment_ratio is not None and moment_ratio > 1.0:
-        status = "RED"
-        m_demand = details.get("M_demand_ft_lb", getattr(out, 'M_demand_ft_lb', None) or 0)
-        m_allow = details.get("M_allow_ft_lb", getattr(out, 'M_allow_ft_lb', None) or 0)
+
+    # YELLOW if spacing is slightly above limit, but not RED
+    elif spacing_ratio is not None and 1.0 < spacing_ratio <= 1.15:
+        status = "YELLOW"
+        max_spacing = details.get(
+            "max_spacing_ft",
+            out.max_spacing_ft if hasattr(out, "max_spacing_ft") else 0,
+        )
         details["reasons"].append(
-            f"Moment exceeds allowable by {(moment_ratio-1.0)*100:.0f}% ({m_demand:.1f} ft·lb vs {m_allow:.1f} ft·lb allowable)"
+            f"Spacing at {spacing_ratio*100:.0f}% of limit "
+            f"({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
         )
-    
-    # Check for YELLOW conditions (only if not already RED)
-    if status != "RED":
-        if spacing_ratio is not None and 1.0 < spacing_ratio <= 1.15:
-            status = "YELLOW"
-            max_spacing = details.get("max_spacing_ft", out.max_spacing_ft if hasattr(out, 'max_spacing_ft') else 0)
-            details["reasons"].append(
-                f"Spacing at {spacing_ratio*100:.0f}% of limit ({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
-            )
-        elif moment_ratio is not None and 0.85 <= moment_ratio < 1.0:
-            status = "YELLOW"
-            m_demand = details.get("M_demand_ft_lb", 0)
-            m_allow = details.get("M_allow_ft_lb", 0)
-            details["reasons"].append(
-                f"Moment at {moment_ratio*100:.0f}% of allowable ({m_demand:.1f} ft·lb vs {m_allow:.1f} ft·lb allowable)"
-            )
-    
-    # Check for warnings that might elevate status
-    if out.warnings:
-        warning_text = " ".join(w.lower() for w in out.warnings)
-        if "exceeds" in warning_text or "outside" in warning_text or "pe review" in warning_text:
-            if status == "GREEN":
-                status = "YELLOW"
-            elif status == "YELLOW":
-                status = "RED"
-    
-    # If no specific ratios available but we have warnings, use warning-based logic
+
+    # --- Optional advisory note about bending capacity (does NOT change status) ---
+    if moment_ratio is not None:
+        m_demand = details.get("M_demand_ft_lb", 0)
+        m_allow = details.get("M_allow_ft_lb", 0)
+        details["reasons"].append(
+            "Bending capacity check (advisory): "
+            f"{moment_ratio*100:.0f}% utilization "
+            f"({m_demand:.1f} ft·lb demand vs {m_allow:.1f} ft·lb simplified capacity; "
+            "spacing tables remain the governing limit)."
+        )
+
+    # --- If we have no ratios at all, fall back to warnings only ---
     if spacing_ratio is None and moment_ratio is None:
         if out.warnings:
             lowered = " ".join(w.lower() for w in out.warnings)
@@ -262,14 +260,11 @@ def classify_risk(
         else:
             status = "GREEN"
             details["reasons"].append("Configuration is within recommended limits")
-    
-    # Final GREEN confirmation
-    if status == "GREEN":
-        if spacing_ratio is not None and spacing_ratio <= 1.0 and (moment_ratio is None or moment_ratio < 0.85):
-            details["reasons"].append("Configuration is within recommended limits")
-        elif spacing_ratio is None and moment_ratio is None:
-            details["reasons"].append("Configuration is within recommended limits")
-    
+    else:
+        # If we got here with spacing_ratio <= 1.0, call that out explicitly
+        if status == "GREEN":
+            details["reasons"].append("Configuration is within recommended table limits")
+
     return status, details
 
 
