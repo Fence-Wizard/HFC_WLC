@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
+from windcalc.post_catalog import (
+    POST_TYPES,
+    compute_max_spacing_cf,
+    compute_moment_check,
+)
 from windcalc.schemas import (
     EstimateInput,
     EstimateOutput,
@@ -18,24 +23,23 @@ VELOCITY_PRESSURE_COEFFICIENT = 0.00256
 DESIGN_PRESSURE_MULTIPLIER = 1.2  # Simplified multiplier - replace with proper Cf coefficients
 EXPOSURE_FACTORS: Dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
 
-# Post catalog with structural capacities
-_POST_CATALOG: Dict[str, Dict[str, float]] = {
-    '2-3/8" SS40': {
-        "max_load_lb": 700.0,   # allowable load per post (tune from your Excel or PE tables)
-        "footing_diameter_in": 12.0,
-        "embedment_in": 30.0,
-    },
-    '2-7/8" SS40': {
-        "max_load_lb": 1200.0,
-        "footing_diameter_in": 16.0,
-        "embedment_in": 36.0,
-    },
-    '3-1/2" SS40': {
-        "max_load_lb": 1800.0,
-        "footing_diameter_in": 18.0,
-        "embedment_in": 42.0,
-    },
+# Mapping from old display format to new catalog keys
+_POST_SIZE_TO_KEY: Dict[str, str] = {
+    '2-3/8" SS40': "2_3_8_SS40",
+    '2-7/8" SS40': "2_7_8_SS40",
+    '3-1/2" SS40': "3_1_2_SS40",
 }
+
+
+def _normalize_post_key(post_size: Optional[str]) -> Optional[str]:
+    """Convert display format post size to catalog key."""
+    if not post_size:
+        return None
+    # Check if it's already a key
+    if post_size in POST_TYPES:
+        return post_size
+    # Check if it's in the mapping
+    return _POST_SIZE_TO_KEY.get(post_size)
 
 
 def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
@@ -87,28 +91,52 @@ def calculate(data: EstimateInput) -> EstimateOutput:
 
     # Honour post override when selecting member
     post_size_override = getattr(data, "post_size", None)
-    recommended = _recommend_member_with_override(load_per_post_lb, post_size_override)
+    post_key = _normalize_post_key(post_size_override)
+    recommended = _recommend_member_with_override(load_per_post_lb, post_size_override, post_key)
 
     warnings = _build_warnings(data, pressure_psf, load_per_post_lb)
 
-    # Compute max spacing for a fixed post, if we know its capacity
+    # Compute max spacing using Cf-based method if post is specified
     max_spacing_ft: Optional[float] = None
-    if post_size_override and post_size_override in _POST_CATALOG:
-        cap = _POST_CATALOG[post_size_override]["max_load_lb"]
-        if pressure_psf > 0 and data.height_total_ft > 0:
-            max_spacing_ft = round(
-                2 * cap / (pressure_psf * data.height_total_ft),
-                2,
+    M_demand_lb_in: Optional[float] = None
+    M_allow_lb_in: Optional[float] = None
+    moment_ok: bool = True
+
+    if post_key and post_key in POST_TYPES:
+        # Cf-based max spacing calculation
+        max_spacing_ft = round(
+            compute_max_spacing_cf(
+                post_key=post_key,
+                wind_speed_mph=data.wind_speed_mph,
+                exposure=data.exposure.upper(),
+            ),
+            2,
+        )
+
+        # If current spacing exceeds the computed maximum, flag it
+        if data.post_spacing_ft > max_spacing_ft:
+            post = POST_TYPES[post_key]
+            warnings.append(
+                f"For post {post.label} at {data.wind_speed_mph:.0f} mph and "
+                f"exposure {data.exposure}, max recommended spacing is about "
+                f"{max_spacing_ft:.2f} ft; current spacing {data.post_spacing_ft:.2f} ft "
+                "exceeds this simplified limit."
             )
 
-            # If current spacing exceeds the computed maximum, flag it
-            if data.post_spacing_ft > max_spacing_ft:
-                warnings.append(
-                    f"At {data.wind_speed_mph:.0f} mph and {data.height_total_ft:.1f} ft, "
-                    f'post {post_size_override} should not exceed about {max_spacing_ft:.2f} ft spacing. '
-                    f'Current spacing {data.post_spacing_ft:.2f} ft is outside this simplified limit. '
-                    "Consider decreasing spacing, increasing post size, or obtaining an engineered design."
-                )
+        # Bending moment check
+        M_demand_lb_in, M_allow_lb_in, moment_ok = compute_moment_check(
+            post_key=post_key,
+            height_ft=data.height_total_ft,
+            load_per_post_lb=load_per_post_lb,
+        )
+
+        if not moment_ok:
+            post = POST_TYPES[post_key]
+            warnings.append(
+                f"Bending demand {M_demand_lb_in/12:.1f} ft·lb exceeds allowable "
+                f"{M_allow_lb_in/12:.1f} ft·lb for post {post.label} "
+                f"({post.fy_ksi:.0f} ksi steel). Increase post size or request PE review."
+            )
 
     assumptions = _assumptions(data)
 
@@ -121,6 +149,8 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         warnings=warnings,
         assumptions=assumptions,
         max_spacing_ft=max_spacing_ft,
+        M_demand_ft_lb=round(M_demand_lb_in / 12.0, 1) if M_demand_lb_in is not None else None,
+        M_allow_ft_lb=round(M_allow_lb_in / 12.0, 1) if M_allow_lb_in is not None else None,
     )
 
 
@@ -135,12 +165,13 @@ def _recommend_member(load_per_post: float) -> Recommendation:
 def _recommend_member_with_override(
     load_per_post: float,
     post_size_override: Optional[str],
+    post_key: Optional[str] = None,
 ) -> Recommendation:
     """
     Choose post + footing.
 
     - If no override is given, fall back to the existing simplified _recommend_member().
-    - If an override is given and recognized in _POST_CATALOG:
+    - If an override is given and recognized in POST_TYPES:
         * keep that post size,
         * use its footing from the catalog,
         * and let spacing checks / warnings handle overloads.
@@ -149,16 +180,29 @@ def _recommend_member_with_override(
         # Behavior exactly as before
         return _recommend_member(load_per_post)
 
-    cfg = _POST_CATALOG.get(post_size_override)
-    if cfg is None:
-        # Unknown string -> fall back
-        return _recommend_member(load_per_post)
+    # Use post_key if provided, otherwise try to normalize
+    if not post_key:
+        post_key = _normalize_post_key(post_size_override)
 
-    return Recommendation(
-        post_size=post_size_override,
-        footing_diameter_in=cfg["footing_diameter_in"],
-        embedment_in=cfg["embedment_in"],
-    )
+    if post_key and post_key in POST_TYPES:
+        post = POST_TYPES[post_key]
+        # Use default footing values from old catalog for now
+        # These should eventually come from POST_TYPES or a separate footing catalog
+        footing_map = {
+            "2_3_8_SS40": (12.0, 30.0),
+            "2_7_8_SS40": (16.0, 36.0),
+            "3_1_2_SS40": (18.0, 42.0),
+        }
+        footing_dia, embedment = footing_map.get(post_key, (12.0, 30.0))
+
+        return Recommendation(
+            post_size=post_size_override,  # Keep original display format
+            footing_diameter_in=footing_dia,
+            embedment_in=embedment,
+        )
+
+    # Unknown string -> fall back
+    return _recommend_member(load_per_post)
 
 
 def _build_warnings(data: EstimateInput, pressure: float, load_per_post: float) -> list[str]:

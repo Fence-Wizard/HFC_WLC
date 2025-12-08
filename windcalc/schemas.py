@@ -82,6 +82,8 @@ class EstimateOutput(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     assumptions: List[str] = Field(default_factory=list)
     max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (if fixed)")
+    M_demand_ft_lb: Optional[float] = Field(None, description="Bending moment demand in ft·lb (if post specified)")
+    M_allow_ft_lb: Optional[float] = Field(None, description="Allowable bending moment in ft·lb (if post specified)")
 
 
 __all__ = [
