@@ -22,7 +22,12 @@ def generate_pdf_report(data: dict[str, Any], output_path: str) -> None:
 
 
 def draw_pdf(
-    output_path: Path, input_data: EstimateInput | None, result: EstimateOutput | None, extra: dict[str, Any] | None = None
+    output_path: Path,
+    input_data: EstimateInput | None,
+    result: EstimateOutput | None,
+    extra: dict[str, Any] | None = None,
+    risk_status: str | None = None,
+    risk_details: dict[str, Any] | None = None,
 ) -> None:
     """Generate a PDF report for wind load calculation results."""
 
@@ -39,6 +44,9 @@ def draw_pdf(
 
     if result:
         story.extend(_result_section(result, styles))
+
+    if risk_status and risk_details:
+        story.extend(_status_section(risk_status, risk_details, styles))
 
     if extra:
         story.extend(_legacy_section(extra, styles))
@@ -160,6 +168,92 @@ def _legacy_section(data: dict[str, Any], styles: dict[str, ParagraphStyle]):
     if data.get("calculation_notes"):
         story.append(Paragraph(f"<b>Notes:</b> {data['calculation_notes']}", styles["Normal"]))
 
+    return story
+
+
+def _status_section(
+    risk_status: str,
+    risk_details: dict[str, Any],
+    styles: dict[str, ParagraphStyle],
+):
+    """Add structural status section to PDF."""
+    story = []
+    story.append(Paragraph("<b>Structural Status</b>", styles["Heading2"]))
+    
+    # Status banner
+    if risk_status == "GREEN":
+        status_text = "🟢 GREEN – Configuration is within recommended limits"
+        status_footer = "Meets preliminary structural criteria (Green Zone)."
+        bg_color = colors.lightgreen
+        text_color = colors.darkgreen
+    elif risk_status == "YELLOW":
+        status_text = "🟡 YELLOW – Configuration is close to a structural limit"
+        status_footer = "Near-limit preliminary result — review recommended."
+        bg_color = colors.yellow
+        text_color = colors.darkorange
+    else:  # RED
+        status_text = "🔴 RED – Configuration exceeds structural limits"
+        status_footer = "NOT acceptable — change post size, spacing, or seek engineering."
+        bg_color = colors.pink
+        text_color = colors.darkred
+    
+    # Status header
+    status_style = ParagraphStyle(
+        "StatusHeader",
+        parent=styles["Normal"],
+        fontSize=12,
+        textColor=text_color,
+        backColor=bg_color,
+        borderPadding=10,
+        borderWidth=2,
+        borderColor=text_color,
+    )
+    story.append(Paragraph(status_text, status_style))
+    story.append(Spacer(1, 0.15 * inch))
+    
+    # Status details
+    if risk_details.get("reasons"):
+        story.append(Paragraph("<b>Status Details:</b>", styles["Heading3"]))
+        for reason in risk_details["reasons"]:
+            story.append(Paragraph(f"• {reason}", styles["Normal"]))
+        story.append(Spacer(1, 0.1 * inch))
+    
+    # Ratios table
+    ratio_rows = []
+    if risk_details.get("spacing_ratio") is not None:
+        ratio_rows.append([
+            "Spacing Ratio",
+            f"{risk_details['spacing_ratio']*100:.1f}%",
+        ])
+    if risk_details.get("moment_ratio") is not None:
+        ratio_rows.append([
+            "Moment Ratio",
+            f"{risk_details['moment_ratio']*100:.1f}%",
+        ])
+    
+    if ratio_rows:
+        ratio_table = Table(ratio_rows)
+        ratio_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.lightgrey),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ])
+        )
+        story.append(ratio_table)
+        story.append(Spacer(1, 0.1 * inch))
+    
+    # Footer message
+    footer_style = ParagraphStyle(
+        "StatusFooter",
+        parent=styles["Normal"],
+        fontSize=10,
+        textColor=text_color,
+        fontStyle="italic",
+    )
+    story.append(Paragraph(status_footer, footer_style))
+    story.append(Spacer(1, 0.2 * inch))
+    
     return story
 
 

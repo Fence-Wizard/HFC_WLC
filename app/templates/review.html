@@ -131,13 +131,50 @@
   <button type="submit">Recalculate</button>
 </form>
 
-<h3>Risk level</h3>
-{% if risk == "GREEN" %}
-<p style="color: green;">GREEN – Within table-based recommendations.</p>
-{% elif risk == "YELLOW" %}
-<p style="color: orange;">YELLOW – Review warnings carefully.</p>
-{% else %}
-<p style="color: red;">RED – Outside table bounds. PE review required.</p>
+<h3>Structural Status</h3>
+
+<div class="status-banner status-{{ risk.lower() }}">
+  {% if risk == "GREEN" %}
+    <div class="status-header">
+      <strong>🟢 GREEN – Configuration is within recommended limits</strong>
+    </div>
+    <p>Meets preliminary structural criteria. PM can quote using this configuration.</p>
+  {% elif risk == "YELLOW" %}
+    <div class="status-header">
+      <strong>🟡 YELLOW – Configuration is close to a structural limit</strong>
+    </div>
+    <p>Adjust spacing or post size. For bid purposes, consider flagging for engineer review if client requires compliance with ASCE interpretations.</p>
+  {% else %}
+    <div class="status-header">
+      <strong>🔴 RED – Configuration exceeds structural limits</strong>
+    </div>
+    <p><strong>NOT acceptable</strong> — change post size, spacing, or seek engineering. This exceeds simplified design limits — revise configuration.</p>
+  {% endif %}
+</div>
+
+{% if risk_details.reasons %}
+<div class="status-details">
+  <h4>Status Details:</h4>
+  <ul>
+    {% for reason in risk_details.reasons %}
+    <li>{{ reason }}</li>
+    {% endfor %}
+  </ul>
+  
+  {% if risk_details.spacing_ratio is not None %}
+  <p>
+    <strong>Spacing ratio:</strong> {{ "%.1f"|format(risk_details.spacing_ratio * 100) }}% 
+    ({{ "%.2f"|format(data.post_spacing_ft) }} ft / {{ "%.2f"|format(risk_details.max_spacing_ft) }} ft max)
+  </p>
+  {% endif %}
+  
+  {% if risk_details.moment_ratio is not None %}
+  <p>
+    <strong>Moment ratio:</strong> {{ "%.1f"|format(risk_details.moment_ratio * 100) }}%
+    ({{ "%.1f"|format(risk_details.M_demand_ft_lb) }} ft·lb / {{ "%.1f"|format(risk_details.M_allow_ft_lb) }} ft·lb allowable)
+  </p>
+  {% endif %}
+</div>
 {% endif %}
 
 {% if result.warnings %}
