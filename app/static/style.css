@@ -19,3 +19,49 @@ button {
 button {
   padding: 0.5rem 1rem;
 }
+.map-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.map-card {
+  max-width: 260px;
+}
+
+.map-thumb {
+  max-width: 100%;
+  border: 1px solid #666;
+  cursor: pointer;
+}
+
+.map-thumb:hover {
+  outline: 2px solid #aaa;
+}
+
+.map-caption {
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.help-card {
+  border: 1px solid #555;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 1rem 0;
+  font-size: 0.85rem;
+  background: #222;
+}
+
+.small,
+.help-card .small {
+  font-size: 0.8rem;
+}
+
+small {
+  display: block;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  color: #666;
+  font-size: 0.9em;
+}

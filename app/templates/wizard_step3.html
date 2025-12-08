@@ -2,6 +2,8 @@
 {% block content %}
 <h2>Step 3 – Soil / Job info</h2>
 <form method="post" action="/review">
+  <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
+  <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
   <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
   <input type="hidden" name="exposure" value="{{ data.exposure }}" />
   <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />

@@ -15,13 +15,23 @@ def test_root_renders_step1():
 
 
 def test_step_flow_and_review():
-    step2 = client.post("/step2", data={"wind_speed_mph": 110, "exposure": "C"})
+    step2 = client.post(
+        "/step2",
+        data={
+            "zip_code": "12345",
+            "risk_category": "III",
+            "wind_speed_mph": 110,
+            "exposure": "C",
+        },
+    )
     assert step2.status_code == 200
     assert "Step 2" in step2.text
 
     step3 = client.post(
         "/step3",
         data={
+            "zip_code": "12345",
+            "risk_category": "III",
             "wind_speed_mph": 110,
             "exposure": "C",
             "height_total_ft": 8,
@@ -34,6 +44,8 @@ def test_step_flow_and_review():
     review = client.post(
         "/review",
         data={
+            "zip_code": "12345",
+            "risk_category": "III",
             "wind_speed_mph": 110,
             "exposure": "C",
             "height_total_ft": 8,
