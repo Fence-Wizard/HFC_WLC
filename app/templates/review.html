@@ -75,15 +75,56 @@
   <label for="post_size">Post type:</label>
   <select id="post_size" name="post_size">
     {% set current_post = data.post_size or result.recommended.post_size or "" %}
-    <option value="" {% if not current_post %}selected{% endif %}>Auto (based on load)</option>
-    <option value='2-3/8" SS40' {% if current_post == '2-3/8" SS40' %}selected{% endif %}>
-      2-3/8" SS40
+    <option value="" {% if not current_post %}selected{% endif %}>
+      Auto (based on load)
     </option>
-    <option value='2-7/8" SS40' {% if current_post == '2-7/8" SS40' %}selected{% endif %}>
-      2-7/8" SS40
+
+    <!-- Steel Pipe options -->
+    <option value='1 7/8" Steel Pipe'
+      {% if current_post == '1 7/8" Steel Pipe' %}selected{% endif %}>
+      1 7/8" Steel Pipe
     </option>
-    <option value='3-1/2" SS40' {% if current_post == '3-1/2" SS40' %}selected{% endif %}>
-      3-1/2" SS40
+    <option value='2 3/8" Steel Pipe'
+      {% if current_post == '2 3/8" Steel Pipe' %}selected{% endif %}>
+      2 3/8" Steel Pipe
+    </option>
+    <option value='2 7/8" Steel Pipe'
+      {% if current_post == '2 7/8" Steel Pipe' %}selected{% endif %}>
+      2 7/8" Steel Pipe
+    </option>
+    <option value='3 1/2" Steel Pipe'
+      {% if current_post == '3 1/2" Steel Pipe' %}selected{% endif %}>
+      3 1/2" Steel Pipe
+    </option>
+    <option value='4" Steel Pipe'
+      {% if current_post == '4" Steel Pipe' %}selected{% endif %}>
+      4" Steel Pipe
+    </option>
+    <option value='6 5/8" Steel Pipe'
+      {% if current_post == '6 5/8" Steel Pipe' %}selected{% endif %}>
+      6 5/8" Steel Pipe
+    </option>
+    <option value='8 5/8" Steel Pipe'
+      {% if current_post == '8 5/8" Steel Pipe' %}selected{% endif %}>
+      8 5/8" Steel Pipe
+    </option>
+
+    <!-- C-shape options -->
+    <option value='1 7/8" x 1 5/8" x .105" C-Shape'
+      {% if current_post == '1 7/8" x 1 5/8" x .105" C-Shape' %}selected{% endif %}>
+      1 7/8" x 1 5/8" x .105" C-Shape
+    </option>
+    <option value='1 7/8" x 1 5/8" x .121" C-Shape'
+      {% if current_post == '1 7/8" x 1 5/8" x .121" C-Shape' %}selected{% endif %}>
+      1 7/8" x 1 5/8" x .121" C-Shape
+    </option>
+    <option value='2 1/4" x 1 5/8" x .121" C-Shape'
+      {% if current_post == '2 1/4" x 1 5/8" x .121" C-Shape' %}selected{% endif %}>
+      2 1/4" x 1 5/8" x .121" C-Shape
+    </option>
+    <option value='3 1/4" x 2 1/2" x .130" C-Shape'
+      {% if current_post == '3 1/4" x 2 1/2" x .130" C-Shape' %}selected{% endif %}>
+      3 1/4" x 2 1/2" x .130" C-Shape
     </option>
   </select>
 
