@@ -2,6 +2,8 @@
 {% block content %}
 <h2>Step 2 – Fence geometry</h2>
 <form method="post" action="/step3">
+  <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
+  <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
   <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
   <input type="hidden" name="exposure" value="{{ data.exposure }}" />
 

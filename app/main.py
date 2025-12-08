@@ -37,8 +37,19 @@ async def index(request: Request):
 
 
 @app.post("/step2", response_class=HTMLResponse)
-async def step2(request: Request, wind_speed_mph: float = Form(...), exposure: str = Form(...)):
-    data = {"wind_speed_mph": wind_speed_mph, "exposure": exposure}
+async def step2(
+    request: Request,
+    zip_code: str = Form(...),
+    risk_category: str = Form(...),
+    wind_speed_mph: float = Form(...),
+    exposure: str = Form(...),
+):
+    data = {
+        "zip_code": zip_code,
+        "risk_category": risk_category,
+        "wind_speed_mph": wind_speed_mph,
+        "exposure": exposure,
+    }
     return templates.TemplateResponse(
         request,
         "wizard_step2.html",
@@ -49,12 +60,16 @@ async def step2(request: Request, wind_speed_mph: float = Form(...), exposure: s
 @app.post("/step3", response_class=HTMLResponse)
 async def step3(
     request: Request,
+    zip_code: str = Form(...),
+    risk_category: str = Form(...),
     wind_speed_mph: float = Form(...),
     exposure: str = Form(...),
     height_total_ft: float = Form(...),
     post_spacing_ft: float = Form(...),
 ):
     data = {
+        "zip_code": zip_code,
+        "risk_category": risk_category,
         "wind_speed_mph": wind_speed_mph,
         "exposure": exposure,
         "height_total_ft": height_total_ft,
@@ -70,6 +85,8 @@ async def step3(
 @app.post("/review", response_class=HTMLResponse)
 async def review(
     request: Request,
+    zip_code: str = Form(...),
+    risk_category: str = Form(...),
     wind_speed_mph: float = Form(...),
     exposure: str = Form(...),
     height_total_ft: float = Form(...),
@@ -78,6 +95,8 @@ async def review(
     job_name: str = Form(""),
 ):
     data = {
+        "zip_code": zip_code,
+        "risk_category": risk_category,
         "wind_speed_mph": wind_speed_mph,
         "exposure": exposure,
         "height_total_ft": height_total_ft,
@@ -105,6 +124,8 @@ async def review(
 
 @app.get("/download")
 async def download(
+    zip_code: str,
+    risk_category: str,
     wind_speed_mph: float,
     exposure: str,
     height_total_ft: float,

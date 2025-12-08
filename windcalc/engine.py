@@ -68,7 +68,7 @@ def calculate(data: EstimateInput) -> EstimateOutput:
 
     recommended = _recommend_member(load_per_post_lb)
     warnings = _build_warnings(data, pressure_psf, load_per_post_lb)
-    assumptions = _assumptions()
+    assumptions = _assumptions(data)
 
     return EstimateOutput(
         pressure_psf=pressure_psf,
@@ -102,12 +102,16 @@ def _build_warnings(data: EstimateInput, pressure: float, load_per_post: float) 
     return warnings
 
 
-def _assumptions() -> list[str]:
-    return [
+def _assumptions(data: EstimateInput) -> list[str]:
+    assumptions = [
+        f"Design wind speed V = {data.wind_speed_mph} mph "
+        "(3-sec gust at 33 ft), provided by user from ASCE wind maps "
+        "and/or project drawings.",
         "Loads based on simplified ASCE 7-inspired velocity pressure equation.",
         "Exposure factors are approximations for demo purposes.",
         "Uniform pressure distribution assumed across the bay.",
     ]
+    return assumptions
 
 
 __all__ = [

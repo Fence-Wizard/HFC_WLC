@@ -4,6 +4,8 @@
 
 <h3>Inputs</h3>
 <ul>
+  <li>ZIP code: {{ data.zip_code }}</li>
+  <li>Risk category: {{ data.risk_category }}</li>
   <li>Wind: {{ data.wind_speed_mph }} mph</li>
   <li>Exposure: {{ data.exposure }}</li>
   <li>Height: {{ data.height_total_ft }} ft</li>
@@ -28,6 +30,31 @@
     {{ result.recommended.embedment_in or 'N/A' }} in deep
   </li>
 </ul>
+
+<h3>Try a different post spacing</h3>
+<form method="post" action="/review">
+  <!-- Keep all existing inputs as hidden so the calculation stays tied to the same job -->
+  <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
+  <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
+  <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
+  <input type="hidden" name="exposure" value="{{ data.exposure }}" />
+  <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />
+  <input type="hidden" name="soil_type" value="{{ data.soil_type }}" />
+  <input type="hidden" name="job_name" value="{{ data.job_name }}" />
+
+  <label for="post_spacing_ft">Post spacing (ft):</label>
+  <input
+    type="number"
+    id="post_spacing_ft"
+    name="post_spacing_ft"
+    step="0.1"
+    min="2"
+    max="20"
+    value="{{ data.post_spacing_ft }}"
+    required
+  />
+  <button type="submit">Recalculate</button>
+</form>
 
 <h3>Risk level</h3>
 {% if risk == "GREEN" %}
@@ -58,7 +85,7 @@
 
 <h3>PDF</h3>
 <a
-  href="/download?wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}"
+  href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}"
   >Download PDF report</a
 >
 
