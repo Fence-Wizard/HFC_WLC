@@ -1,0 +1,22 @@
+{
+  "name": "basic_fence_calculation",
+  "input": {
+    "fence": {
+      "height": 6.0,
+      "width": 100.0,
+      "material": "wood",
+      "location": "Chicago, IL"
+    },
+    "wind": {
+      "wind_speed": 90.0,
+      "exposure_category": "B",
+      "importance_factor": 1.0
+    },
+    "project_name": "Test Fence Project"
+  },
+  "expected_output": {
+    "design_pressure_min": 24.0,
+    "design_pressure_max": 28.0,
+    "has_calculation_notes": true
+  }
+}
