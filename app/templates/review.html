@@ -9,7 +9,7 @@
   <li>Wind: {{ data.wind_speed_mph }} mph</li>
   <li>Exposure: {{ data.exposure }}</li>
   <li>Height: {{ data.height_total_ft }} ft</li>
-  <li>Post spacing: {{ data.post_spacing_ft }} ft</li>
+  <li>Post spacing: <strong>{{ data.post_spacing_ft }} ft</strong></li>
   <li>Soil type: {{ data.soil_type }}</li>
   <li>Job: {{ data.job_name }}</li>
 </ul>
@@ -17,9 +17,9 @@
 <h3>Results</h3>
 <ul>
   <li>Pressure: {{ "%.2f"|format(result.pressure_psf) }} psf</li>
-  <li>Area per bay: {{ "%.1f"|format(result.area_per_bay_ft2) }} ft²</li>
-  <li>Total load per bay: {{ "%.0f"|format(result.total_load_lb) }} lb</li>
-  <li>Load per post: {{ "%.0f"|format(result.load_per_post_lb) }} lb</li>
+  <li>Area per bay: <strong>{{ "%.1f"|format(result.area_per_bay_ft2) }} ft²</strong> (height × spacing = {{ data.height_total_ft }} × {{ data.post_spacing_ft }})</li>
+  <li>Total load per bay: <strong>{{ "%.0f"|format(result.total_load_lb) }} lb</strong></li>
+  <li>Load per post: <strong>{{ "%.0f"|format(result.load_per_post_lb) }} lb</strong></li>
   <li>
     Recommended post:
     {{ result.recommended.post_size or 'N/A' }}
@@ -32,7 +32,7 @@
 </ul>
 
 <h3>Try a different post spacing</h3>
-<form method="post" action="/review">
+<form method="post" action="/review" enctype="multipart/form-data">
   <!-- Keep all existing inputs as hidden so the calculation stays tied to the same job -->
   <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
   <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
