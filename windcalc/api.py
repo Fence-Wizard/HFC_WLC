@@ -38,12 +38,19 @@ async def calculate(request: WindLoadRequest):
 
     Returns:
         WindLoadResult with calculated wind loads
+
+    Raises:
+        HTTPException: 400 for calculation errors
     """
     try:
         result = calculate_wind_load(request)
         return result
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Calculation error: {str(e)}")
+    except Exception:
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred during calculation"
+        )
 
 
 @app.get("/api/projects")
