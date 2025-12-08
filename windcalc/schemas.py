@@ -1,6 +1,7 @@
 """Pydantic schemas for windcalc data models."""
 
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -17,9 +18,7 @@ class WindConditions(BaseModel):
     """Wind conditions for calculation."""
 
     wind_speed: float = Field(..., description="Design wind speed in mph", gt=0)
-    exposure_category: str = Field(
-        default="B", description="Exposure category (A, B, C, D)"
-    )
+    exposure_category: str = Field(default="B", description="Exposure category (A, B, C, D)")
     importance_factor: float = Field(default=1.0, description="Importance factor", gt=0)
 
 

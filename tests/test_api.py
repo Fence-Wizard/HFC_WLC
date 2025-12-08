@@ -1,6 +1,5 @@
 """Tests for windcalc API."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from windcalc.api import app

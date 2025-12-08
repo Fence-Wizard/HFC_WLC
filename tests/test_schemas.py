@@ -13,9 +13,7 @@ from windcalc.schemas import (
 
 def test_fence_specs_valid():
     """Test valid FenceSpecs creation."""
-    fence = FenceSpecs(
-        height=6.0, width=100.0, material="wood", location="Test Location"
-    )
+    fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test Location")
     assert fence.height == 6.0
     assert fence.width == 100.0
     assert fence.material == "wood"
@@ -30,9 +28,7 @@ def test_fence_specs_invalid_height():
 
 def test_wind_conditions_valid():
     """Test valid WindConditions creation."""
-    wind = WindConditions(
-        wind_speed=90.0, exposure_category="B", importance_factor=1.0
-    )
+    wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)
     assert wind.wind_speed == 90.0
     assert wind.exposure_category == "B"
     assert wind.importance_factor == 1.0
@@ -49,9 +45,7 @@ def test_wind_load_request_valid():
     """Test valid WindLoadRequest creation."""
     fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test")
     wind = WindConditions(wind_speed=90.0)
-    request = WindLoadRequest(
-        fence=fence, wind=wind, project_name="Test Project"
-    )
+    request = WindLoadRequest(fence=fence, wind=wind, project_name="Test Project")
     assert request.fence == fence
     assert request.wind == wind
     assert request.project_name == "Test Project"

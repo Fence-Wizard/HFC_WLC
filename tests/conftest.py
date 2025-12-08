@@ -9,7 +9,7 @@ GOLDEN_CASES_DIR = Path(__file__).parent / "golden_cases"
 def get_golden_case(case_name: str) -> dict:
     """Load a golden test case from JSON file."""
     case_file = GOLDEN_CASES_DIR / f"{case_name}.json"
-    with open(case_file, "r") as f:
+    with open(case_file) as f:
         return json.load(f)
 
 

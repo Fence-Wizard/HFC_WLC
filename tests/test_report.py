@@ -1,10 +1,7 @@
 """Tests for windcalc report module."""
 
-import json
 import tempfile
 from pathlib import Path
-
-import pytest
 
 from windcalc.report import generate_pdf_report
 

@@ -1,10 +1,11 @@
 """Pandas-based data tables for windcalc."""
 
+from typing import Any
+
 import pandas as pd
-from typing import List, Dict, Any
 
 
-def create_results_dataframe(results: List[Dict[str, Any]]) -> pd.DataFrame:
+def create_results_dataframe(results: list[dict[str, Any]]) -> pd.DataFrame:
     """
     Create a pandas DataFrame from wind load calculation results.
 

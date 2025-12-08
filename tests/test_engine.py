@@ -3,10 +3,8 @@
 import json
 from pathlib import Path
 
-import pytest
-
-from windcalc.schemas import FenceSpecs, WindConditions, WindLoadRequest
 from windcalc.engine import calculate_wind_load
+from windcalc.schemas import FenceSpecs, WindConditions, WindLoadRequest
 
 
 def test_calculate_wind_load_basic():
@@ -40,38 +38,38 @@ def test_calculate_wind_load_higher_speed():
 def test_calculate_wind_load_golden_basic(tmp_path):
     """Test calculation against golden case - basic fence."""
     golden_file = Path(__file__).parent / "golden_cases" / "basic_fence.json"
-    with open(golden_file, "r") as f:
+    with open(golden_file) as f:
         golden = json.load(f)
 
     input_data = golden["input"]
     fence = FenceSpecs(**input_data["fence"])
     wind = WindConditions(**input_data["wind"])
-    request = WindLoadRequest(
-        fence=fence, wind=wind, project_name=input_data["project_name"]
-    )
+    request = WindLoadRequest(fence=fence, wind=wind, project_name=input_data["project_name"])
 
     result = calculate_wind_load(request)
 
     expected = golden["expected_output"]
-    assert expected["design_pressure_min"] <= result.design_pressure <= expected["design_pressure_max"]
+    assert (
+        expected["design_pressure_min"] <= result.design_pressure <= expected["design_pressure_max"]
+    )
     assert result.calculation_notes is not None
 
 
 def test_calculate_wind_load_golden_high_wind(tmp_path):
     """Test calculation against golden case - high wind."""
     golden_file = Path(__file__).parent / "golden_cases" / "high_wind.json"
-    with open(golden_file, "r") as f:
+    with open(golden_file) as f:
         golden = json.load(f)
 
     input_data = golden["input"]
     fence = FenceSpecs(**input_data["fence"])
     wind = WindConditions(**input_data["wind"])
-    request = WindLoadRequest(
-        fence=fence, wind=wind, project_name=input_data["project_name"]
-    )
+    request = WindLoadRequest(fence=fence, wind=wind, project_name=input_data["project_name"])
 
     result = calculate_wind_load(request)
 
     expected = golden["expected_output"]
-    assert expected["design_pressure_min"] <= result.design_pressure <= expected["design_pressure_max"]
+    assert (
+        expected["design_pressure_min"] <= result.design_pressure <= expected["design_pressure_max"]
+    )
     assert result.calculation_notes is not None

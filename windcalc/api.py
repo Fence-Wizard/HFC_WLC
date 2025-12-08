@@ -1,10 +1,9 @@
 """FastAPI application for windcalc."""
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 
-from windcalc.schemas import WindLoadRequest, WindLoadResult
 from windcalc.engine import calculate_wind_load
+from windcalc.schemas import WindLoadRequest, WindLoadResult
 
 app = FastAPI(
     title="Windcalc API",

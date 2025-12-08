@@ -1,15 +1,14 @@
 """CLI interface for windcalc."""
 
 import json
-import sys
 from pathlib import Path
 from typing import Optional
 
 import click
 
-from windcalc.schemas import FenceSpecs, WindConditions, WindLoadRequest
 from windcalc.engine import calculate_wind_load
 from windcalc.report import generate_pdf_report
+from windcalc.schemas import FenceSpecs, WindConditions, WindLoadRequest
 
 
 @click.group()
@@ -25,9 +24,7 @@ def main():
 @click.option("--material", type=str, required=True, help="Fence material")
 @click.option("--location", type=str, required=True, help="Installation location")
 @click.option("--wind-speed", type=float, required=True, help="Design wind speed in mph")
-@click.option(
-    "--exposure", type=str, default="B", help="Exposure category (A, B, C, D)"
-)
+@click.option("--exposure", type=str, default="B", help="Exposure category (A, B, C, D)")
 @click.option("--importance", type=float, default=1.0, help="Importance factor")
 @click.option("--project-name", type=str, help="Project name")
 @click.option("--output", type=click.Path(), help="Output JSON file path")

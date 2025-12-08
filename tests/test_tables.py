@@ -1,7 +1,6 @@
 """Tests for windcalc tables module."""
 
 import pandas as pd
-import pytest
 
 from windcalc.tables import (
     create_results_dataframe,

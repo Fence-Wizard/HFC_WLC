@@ -1,15 +1,14 @@
 """PDF report generation module."""
 
-from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
-def generate_pdf_report(data: Dict[str, Any], output_path: str) -> None:
+def generate_pdf_report(data: dict[str, Any], output_path: str) -> None:
     """
     Generate a PDF report for wind load calculation results.
 
@@ -35,9 +34,7 @@ def generate_pdf_report(data: Dict[str, Any], output_path: str) -> None:
 
     # Project info
     if data.get("project_name"):
-        project = Paragraph(
-            f"<b>Project:</b> {data['project_name']}", styles["Normal"]
-        )
+        project = Paragraph(f"<b>Project:</b> {data['project_name']}", styles["Normal"])
         story.append(project)
         story.append(Spacer(1, 12))
 
@@ -112,9 +109,7 @@ def generate_pdf_report(data: Dict[str, Any], output_path: str) -> None:
 
     # Notes
     if data.get("calculation_notes"):
-        notes = Paragraph(
-            f"<b>Notes:</b> {data['calculation_notes']}", styles["Normal"]
-        )
+        notes = Paragraph(f"<b>Notes:</b> {data['calculation_notes']}", styles["Normal"])
         story.append(notes)
 
     doc.build(story)
