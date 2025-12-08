@@ -1,10 +1,13 @@
 """Pydantic schemas for windcalc data models."""
 
-from typing import Optional
+from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, computed_field
 
 
+# Legacy schemas retained for backward compatibility with the JSON API.
 class FenceSpecs(BaseModel):
     """Fence specifications for wind load calculation."""
 
@@ -39,3 +42,52 @@ class WindLoadResult(BaseModel):
     fence_specs: FenceSpecs
     wind_conditions: WindConditions
     calculation_notes: Optional[str] = None
+
+
+# Wizard-friendly schemas
+class Recommendation(BaseModel):
+    """Recommended post and footing selection."""
+
+    post_size: Optional[str] = Field(None, description="Recommended post size")
+    footing_diameter_in: Optional[float] = Field(None, description="Footing diameter in inches")
+    embedment_in: Optional[float] = Field(None, description="Embedment depth in inches")
+
+
+class EstimateInput(BaseModel):
+    """Inputs for a bay-style wind load estimate."""
+
+    wind_speed_mph: float = Field(..., gt=0, description="Design wind speed in mph")
+    height_total_ft: float = Field(..., gt=0, description="Total fence height in feet")
+    post_spacing_ft: float = Field(..., gt=0, description="Spacing between posts in feet")
+    exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
+    soil_type: Optional[str] = Field(None, description="Optional soil descriptor")
+
+    @computed_field
+    @property
+    def area_per_bay_ft2(self) -> float:
+        """Calculated tributary area for a single bay."""
+
+        return self.height_total_ft * self.post_spacing_ft
+
+
+class EstimateOutput(BaseModel):
+    """Wind load estimate for a single bay."""
+
+    pressure_psf: float = Field(..., description="Applied pressure in psf")
+    area_per_bay_ft2: float = Field(..., description="Area of a single bay in square feet")
+    total_load_lb: float = Field(..., description="Total load on a bay in pounds")
+    load_per_post_lb: float = Field(..., description="Load per post in pounds")
+    recommended: Recommendation
+    warnings: List[str] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+
+
+__all__ = [
+    "FenceSpecs",
+    "WindConditions",
+    "WindLoadRequest",
+    "WindLoadResult",
+    "Recommendation",
+    "EstimateInput",
+    "EstimateOutput",
+]

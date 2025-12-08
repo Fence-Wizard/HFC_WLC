@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Step 1 – Wind</h2>
+<form method="post" action="/step2">
+  <label>Design wind speed (mph):</label>
+  <input
+    type="number"
+    name="wind_speed_mph"
+    step="0.1"
+    value="{{ data.wind_speed_mph or 115 }}"
+    required
+  />
+  <label>Exposure category:</label>
+  <select name="exposure">
+    {% for exp in ["B","C","D"] %}
+    <option
+      value="{{ exp }}"
+      {% if data.exposure==exp or (not data.exposure and exp=="C") %}selected{% endif %}
+    >
+      {{ exp }}
+    </option>
+    {% endfor %}
+  </select>
+  <button type="submit">Next</button>
+</form>
+{% endblock %}

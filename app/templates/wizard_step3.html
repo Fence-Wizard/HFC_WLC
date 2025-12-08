@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Step 3 – Soil / Job info</h2>
+<form method="post" action="/review">
+  <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
+  <input type="hidden" name="exposure" value="{{ data.exposure }}" />
+  <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />
+  <input type="hidden" name="post_spacing_ft" value="{{ data.post_spacing_ft }}" />
+
+  <label>Soil / condition type:</label>
+  <input
+    type="text"
+    name="soil_type"
+    value="{{ data.soil_type or 'default' }}"
+  />
+
+  <label>Job name / reference:</label>
+  <input type="text" name="job_name" value="{{ data.job_name or '' }}" />
+
+  <button type="submit">Review & Calculate</button>
+</form>
+{% endblock %}

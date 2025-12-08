@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Review & Results</h2>
+
+<h3>Inputs</h3>
+<ul>
+  <li>Wind: {{ data.wind_speed_mph }} mph</li>
+  <li>Exposure: {{ data.exposure }}</li>
+  <li>Height: {{ data.height_total_ft }} ft</li>
+  <li>Post spacing: {{ data.post_spacing_ft }} ft</li>
+  <li>Soil type: {{ data.soil_type }}</li>
+  <li>Job: {{ data.job_name }}</li>
+</ul>
+
+<h3>Results</h3>
+<ul>
+  <li>Pressure: {{ "%.2f"|format(result.pressure_psf) }} psf</li>
+  <li>Area per bay: {{ "%.1f"|format(result.area_per_bay_ft2) }} ft²</li>
+  <li>Total load per bay: {{ "%.0f"|format(result.total_load_lb) }} lb</li>
+  <li>Load per post: {{ "%.0f"|format(result.load_per_post_lb) }} lb</li>
+  <li>
+    Recommended post:
+    {{ result.recommended.post_size or 'N/A' }}
+  </li>
+  <li>
+    Footing:
+    {{ result.recommended.footing_diameter_in or 'N/A' }} in dia ×
+    {{ result.recommended.embedment_in or 'N/A' }} in deep
+  </li>
+</ul>
+
+<h3>Risk level</h3>
+{% if risk == "GREEN" %}
+<p style="color: green;">GREEN – Within table-based recommendations.</p>
+{% elif risk == "YELLOW" %}
+<p style="color: orange;">YELLOW – Review warnings carefully.</p>
+{% else %}
+<p style="color: red;">RED – Outside table bounds. PE review required.</p>
+{% endif %}
+
+{% if result.warnings %}
+<h3>Warnings</h3>
+<ul>
+  {% for w in result.warnings %}
+  <li>{{ w }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if result.assumptions %}
+<h3>Assumptions</h3>
+<ul>
+  {% for a in result.assumptions %}
+  <li>{{ a }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<h3>PDF</h3>
+<a
+  href="/download?wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}"
+  >Download PDF report</a
+>
+
+{% endblock %}
