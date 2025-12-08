@@ -61,6 +61,7 @@ class EstimateInput(BaseModel):
     post_spacing_ft: float = Field(..., gt=0, description="Spacing between posts in feet")
     exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
     soil_type: Optional[str] = Field(None, description="Optional soil descriptor")
+    post_size: Optional[str] = Field(None, description="Optional post size override (e.g., '2-3/8\" SS40')")
 
     @computed_field
     @property
@@ -80,6 +81,7 @@ class EstimateOutput(BaseModel):
     recommended: Recommendation
     warnings: List[str] = Field(default_factory=list)
     assumptions: List[str] = Field(default_factory=list)
+    max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (if fixed)")
 
 
 __all__ = [
