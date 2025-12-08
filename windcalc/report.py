@@ -227,7 +227,7 @@ def _status_section(
         ])
     if risk_details.get("moment_ratio") is not None:
         ratio_rows.append([
-            "Moment Ratio",
+            "Bending Capacity Utilization",
             f"{risk_details['moment_ratio']*100:.1f}%",
         ])
     
