@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import math
 from dataclasses import dataclass
-from typing import Literal, Optional
+from functools import lru_cache
+from pathlib import Path
+from typing import Dict, Literal, Optional
 
 PostGroup = Literal["IA_REG", "IA_HIGH", "IC_PIPE", "II_CSHAPE"]
 
@@ -20,53 +23,130 @@ class PostType:
     spacing_base_ft: float = 0.0  # S_table: base spacing from your manual
     fy_ksi: float = 50.0  # yield strength (30 or 50 typically)
     section_modulus_in3: Optional[float] = None  # precomputed for C-shapes
+    table_label: Optional[str] = None  # exact label used in the CSV tables
 
 
 POST_TYPES: dict[str, PostType] = {
-    # --- Pipe posts (Group IC: steel pipe 50 ksi) ---
+    # --- Existing pipe posts (Group IC: steel pipe, 50 ksi) ---
     "2_3_8_SS40": PostType(
         key="2_3_8_SS40",
         label='2-3/8" SS40 (Line Post)',
         group="IC_PIPE",
         od_in=2.375,
-        wall_in=0.130,  # adjust to your actual SS40 wall
+        wall_in=0.130,  # confirm from your product data
         height_base_ft=6.0,
-        spacing_base_ft=8.0,  # S_table for that height/post from your manual
+        spacing_base_ft=8.0,
         fy_ksi=50.0,
+        table_label='2 3/8"',  # matches WLC Tables CSV row
     ),
     "2_7_8_SS40": PostType(
         key="2_7_8_SS40",
         label='2-7/8" SS40 (Line Post)',
         group="IC_PIPE",
         od_in=2.875,
-        wall_in=0.160,  # adjust
+        wall_in=0.160,
         height_base_ft=6.0,
         spacing_base_ft=10.0,
         fy_ksi=50.0,
+        table_label='2 7/8"',
     ),
     "3_1_2_SS40": PostType(
         key="3_1_2_SS40",
         label='3-1/2" SS40 (Line Post)',
         group="IC_PIPE",
         od_in=3.5,
-        wall_in=0.160,  # adjust
+        wall_in=0.160,
         height_base_ft=8.0,
         spacing_base_ft=10.0,
         fy_ksi=50.0,
+        table_label='3 1/2"',
     ),
-    # --- C-shapes (Group II: high strength cold-rolled C-shape 50 ksi) ---
+    # --- Additional steel pipe sizes (same group / style) ---
+    "1_7_8_PIPE": PostType(
+        key="1_7_8_PIPE",
+        label='1 7/8" Steel Pipe',
+        group="IC_PIPE",
+        od_in=1.90,  # TODO: confirm OD from mill certs
+        wall_in=0.120,  # TODO: confirm wall
+        height_base_ft=6.0,
+        spacing_base_ft=8.0,
+        fy_ksi=50.0,
+        table_label='1 7/8"',
+    ),
+    "4_0_PIPE": PostType(
+        key="4_0_PIPE",
+        label='4" Steel Pipe',
+        group="IC_PIPE",
+        od_in=4.00,  # TODO: confirm
+        wall_in=0.160,  # TODO: confirm
+        height_base_ft=8.0,
+        spacing_base_ft=10.0,
+        fy_ksi=50.0,
+        table_label='4"',
+    ),
+    "6_5_8_PIPE": PostType(
+        key="6_5_8_PIPE",
+        label='6 5/8" Steel Pipe',
+        group="IC_PIPE",
+        od_in=6.625,  # TODO: confirm
+        wall_in=0.280,  # TODO: confirm
+        height_base_ft=8.0,
+        spacing_base_ft=10.0,
+        fy_ksi=50.0,
+        table_label='6 5/8"',
+    ),
+    "8_5_8_PIPE": PostType(
+        key="8_5_8_PIPE",
+        label='8 5/8" Steel Pipe',
+        group="IC_PIPE",
+        od_in=8.625,  # TODO: confirm
+        wall_in=0.322,  # TODO: confirm
+        height_base_ft=8.0,
+        spacing_base_ft=10.0,
+        fy_ksi=50.0,
+        table_label='8 5/8"',
+    ),
+    # --- C-shapes (Group II: high strength cold-rolled C-shape, 50 ksi) ---
     "C_1_7_8_X_1_5_8_X_105": PostType(
         key="C_1_7_8_X_1_5_8_X_105",
         label='1 7/8" x 1 5/8" x .105" C-Shape',
         group="II_CSHAPE",
-        od_in=None,
-        wall_in=None,
         height_base_ft=6.0,
-        spacing_base_ft=8.0,  # from your table
+        spacing_base_ft=8.0,
         fy_ksi=50.0,
-        section_modulus_in3=1.23,  # example; fill from your manual
+        section_modulus_in3=None,  # TODO: plug in Sx from manufacturer if you want moment checks
+        table_label='1 7/8" x 1 5/8" x .105',
     ),
-    # Add more post types as needed...
+    "C_1_7_8_X_1_5_8_X_121": PostType(
+        key="C_1_7_8_X_1_5_8_X_121",
+        label='1 7/8" x 1 5/8" x .121" C-Shape',
+        group="II_CSHAPE",
+        height_base_ft=6.0,
+        spacing_base_ft=8.0,
+        fy_ksi=50.0,
+        section_modulus_in3=None,  # TODO: add Sx
+        table_label='1 7/8" x 1 5/8" x .121',
+    ),
+    "C_2_1_4_X_1_5_8_X_121": PostType(
+        key="C_2_1_4_X_1_5_8_X_121",
+        label='2 1/4" x 1 5/8" x .121" C-Shape',
+        group="II_CSHAPE",
+        height_base_ft=6.0,
+        spacing_base_ft=8.0,
+        fy_ksi=50.0,
+        section_modulus_in3=None,
+        table_label='2 1/4" x 1 5/8" x .121',
+    ),
+    "C_3_1_4_X_2_1_2_X_130": PostType(
+        key="C_3_1_4_X_2_1_2_X_130",
+        label='3 1/4" x 2 1/2" x .130" C-Shape',
+        group="II_CSHAPE",
+        height_base_ft=6.0,
+        spacing_base_ft=8.0,
+        fy_ksi=50.0,
+        section_modulus_in3=None,
+        table_label='3 1/4" x 2 1/2" x .130',
+    ),
 }
 
 # Cf1 values per group & wind speed (mph)
@@ -211,6 +291,102 @@ def compute_moment_check(
     return (M_demand, M_allow, is_ok)
 
 
+# Table-based spacing lookup
+TABLE_DIR = Path(__file__).resolve().parent / "data" / "WLC Tables"
+
+# Available wind speed tables (will be populated if tables exist)
+_AVAILABLE_WS: list[int] = []
+
+if TABLE_DIR.exists():
+    _AVAILABLE_WS = sorted(
+        int(p.stem.replace("mph", "")) for p in TABLE_DIR.glob("*mph.csv")
+    )
+
+
+@lru_cache(maxsize=32)
+def _load_ws_tables(ws_mph: int) -> Dict[PostGroup, Dict[str, Dict[float, float]]]:
+    """
+    Parse one <ws>mph.csv into:
+      { group: { table_label: { height_ft: spacing_ft } } }
+
+    Returns empty dicts if file doesn't exist or can't be parsed.
+    """
+    path = TABLE_DIR / f"{ws_mph}mph.csv"
+    tables: Dict[PostGroup, Dict[str, Dict[float, float]]] = {
+        "IA_REG": {},
+        "IA_HIGH": {},
+        "IC_PIPE": {},
+        "II_CSHAPE": {},
+    }
+
+    if not path.exists():
+        return tables
+
+    try:
+        with path.open(newline="", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+
+        # TODO: Implement full CSV parsing logic here
+        # The CSV structure needs to be analyzed to properly parse:
+        # - Height rows (e.g., "Height -->")
+        # - Post size rows with spacing values
+        # - Group assignments (IA_REG, IA_HIGH, IC_PIPE, II_CSHAPE)
+        # For now, return empty tables - this will fall back to Cf-based calculation
+
+    except Exception:
+        # If parsing fails, return empty tables (will use Cf fallback)
+        pass
+
+    return tables
+
+
+def compute_max_spacing_from_tables(
+    post_key: str,
+    wind_speed_mph: float,
+    height_ft: float,
+) -> float | None:
+    """
+    Look up max spacing from CSV tables if available.
+    Returns None if tables don't exist or post isn't found.
+    """
+    post = POST_TYPES[post_key]
+    if not post.table_label:
+        return None  # nothing to look up
+
+    # Choose conservative wind speed table
+    if not _AVAILABLE_WS:
+        return None  # no tables available
+
+    ws_candidates = [ws for ws in _AVAILABLE_WS if ws >= wind_speed_mph]
+    if not ws_candidates:
+        ws_use = _AVAILABLE_WS[-1]  # use highest available
+    else:
+        ws_use = ws_candidates[0]
+
+    all_tables = _load_ws_tables(ws_use)
+    group_tables = all_tables.get(post.group, {})
+    row = group_tables.get(post.table_label)
+    if not row:
+        return None
+
+    # Choose height column: smallest tabulated height >= requested height
+    heights = sorted(h for h in row.keys() if h is not None)
+    if not heights:
+        return None
+
+    chosen_h = None
+    for h in heights:
+        if h >= height_ft:
+            chosen_h = h
+            break
+    if chosen_h is None:
+        chosen_h = heights[-1]  # if fence taller than table, use most conservative
+
+    spacing = row[chosen_h]
+    return spacing
+
+
 __all__ = [
     "PostGroup",
     "PostType",
@@ -220,6 +396,7 @@ __all__ = [
     "DEFAULT_CF3",
     "get_cf1",
     "compute_max_spacing_cf",
+    "compute_max_spacing_from_tables",
     "section_modulus_pipe",
     "bending_capacity_lb_in",
     "compute_moment_check",

@@ -7,6 +7,7 @@ from typing import Dict, Optional
 from windcalc.post_catalog import (
     POST_TYPES,
     compute_max_spacing_cf,
+    compute_max_spacing_from_tables,
     compute_moment_check,
 )
 from windcalc.schemas import (
@@ -28,6 +29,19 @@ _POST_SIZE_TO_KEY: Dict[str, str] = {
     '2-3/8" SS40': "2_3_8_SS40",
     '2-7/8" SS40': "2_7_8_SS40",
     '3-1/2" SS40': "3_1_2_SS40",
+    # New pipe options (what PMs will see in the dropdown)
+    '1 7/8" Steel Pipe': "1_7_8_PIPE",
+    '2 3/8" Steel Pipe': "2_3_8_SS40",  # synonym
+    '2 7/8" Steel Pipe': "2_7_8_SS40",  # synonym
+    '3 1/2" Steel Pipe': "3_1_2_SS40",  # synonym
+    '4" Steel Pipe': "4_0_PIPE",
+    '6 5/8" Steel Pipe': "6_5_8_PIPE",
+    '8 5/8" Steel Pipe': "8_5_8_PIPE",
+    # New C-shapes
+    '1 7/8" x 1 5/8" x .105" C-Shape': "C_1_7_8_X_1_5_8_X_105",
+    '1 7/8" x 1 5/8" x .121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
+    '2 1/4" x 1 5/8" x .121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
+    '3 1/4" x 2 1/2" x .130" C-Shape': "C_3_1_4_X_2_1_2_X_130",
 }
 
 
@@ -103,15 +117,25 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     moment_ok: bool = True
 
     if post_key and post_key in POST_TYPES:
-        # Cf-based max spacing calculation
-        max_spacing_ft = round(
-            compute_max_spacing_cf(
-                post_key=post_key,
-                wind_speed_mph=data.wind_speed_mph,
-                exposure=data.exposure.upper(),
-            ),
-            2,
+        # Try table-based value first (more accurate)
+        table_spacing = compute_max_spacing_from_tables(
+            post_key=post_key,
+            wind_speed_mph=data.wind_speed_mph,
+            height_ft=data.height_total_ft,
         )
+
+        if table_spacing is not None:
+            max_spacing_ft = round(table_spacing, 2)
+        else:
+            # Fallback to Cf-based approximation if tables are missing
+            max_spacing_ft = round(
+                compute_max_spacing_cf(
+                    post_key=post_key,
+                    wind_speed_mph=data.wind_speed_mph,
+                    exposure=data.exposure.upper(),
+                ),
+                2,
+            )
 
         # If current spacing exceeds the computed maximum, flag it
         if data.post_spacing_ft > max_spacing_ft:
