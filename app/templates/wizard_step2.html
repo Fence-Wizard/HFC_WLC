@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Step 2 – Fence geometry</h2>
+<form method="post" action="/step3">
+  <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
+  <input type="hidden" name="exposure" value="{{ data.exposure }}" />
+
+  <label>Fence height (ft):</label>
+  <input
+    type="number"
+    name="height_total_ft"
+    step="0.1"
+    value="{{ data.height_total_ft or 8 }}"
+    required
+  />
+  <label>Post spacing (ft):</label>
+  <input
+    type="number"
+    name="post_spacing_ft"
+    step="0.1"
+    value="{{ data.post_spacing_ft or 10 }}"
+    required
+  />
+  <button type="submit">Next</button>
+</form>
+{% endblock %}

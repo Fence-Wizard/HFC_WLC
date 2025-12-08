@@ -1,0 +1,21 @@
+body {
+  font-family: Arial, sans-serif;
+}
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+label {
+  display: block;
+  margin-top: 0.5rem;
+}
+input,
+select,
+button {
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+button {
+  padding: 0.5rem 1rem;
+}
