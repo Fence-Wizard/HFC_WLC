@@ -152,7 +152,7 @@
   {% endif %}
 </div>
 
-{% if risk_details.reasons %}
+{% if risk_details and risk_details.reasons %}
 <div class="status-details">
   <h4>Status Details:</h4>
   <ul>
@@ -161,14 +161,14 @@
     {% endfor %}
   </ul>
   
-  {% if risk_details.spacing_ratio is not None %}
+  {% if risk_details.spacing_ratio is not none and risk_details.max_spacing_ft is not none %}
   <p>
     <strong>Spacing ratio:</strong> {{ "%.1f"|format(risk_details.spacing_ratio * 100) }}% 
     ({{ "%.2f"|format(data.post_spacing_ft) }} ft / {{ "%.2f"|format(risk_details.max_spacing_ft) }} ft max)
   </p>
   {% endif %}
   
-  {% if risk_details.moment_ratio is not None %}
+  {% if risk_details.moment_ratio is not none and risk_details.M_demand_ft_lb is not none and risk_details.M_allow_ft_lb is not none %}
   <p>
     <strong>Moment ratio:</strong> {{ "%.1f"|format(risk_details.moment_ratio * 100) }}%
     ({{ "%.1f"|format(risk_details.M_demand_ft_lb) }} ft·lb / {{ "%.1f"|format(risk_details.M_allow_ft_lb) }} ft·lb allowable)

@@ -190,14 +190,17 @@ def classify_risk(
     
     # Calculate spacing ratio
     spacing_ratio = None
-    if out.max_spacing_ft and out.max_spacing_ft > 0:
-        spacing_ratio = data.get("post_spacing_ft", 0) / out.max_spacing_ft
-        details["spacing_ratio"] = spacing_ratio
-        details["max_spacing_ft"] = out.max_spacing_ft
+    if hasattr(out, 'max_spacing_ft') and out.max_spacing_ft is not None and out.max_spacing_ft > 0:
+        post_spacing = data.get("post_spacing_ft", 0)
+        if post_spacing > 0:
+            spacing_ratio = post_spacing / out.max_spacing_ft
+            details["spacing_ratio"] = spacing_ratio
+            details["max_spacing_ft"] = out.max_spacing_ft
     
     # Calculate moment ratio
     moment_ratio = None
-    if out.M_allow_ft_lb and out.M_allow_ft_lb > 0 and out.M_demand_ft_lb is not None:
+    if (hasattr(out, 'M_allow_ft_lb') and out.M_allow_ft_lb is not None and out.M_allow_ft_lb > 0 and
+        hasattr(out, 'M_demand_ft_lb') and out.M_demand_ft_lb is not None):
         moment_ratio = out.M_demand_ft_lb / out.M_allow_ft_lb
         details["moment_ratio"] = moment_ratio
         details["M_demand_ft_lb"] = out.M_demand_ft_lb
@@ -209,26 +212,32 @@ def classify_risk(
     # Check for RED conditions first (any one triggers RED)
     if spacing_ratio is not None and spacing_ratio > 1.15:
         status = "RED"
+        max_spacing = details.get("max_spacing_ft", getattr(out, 'max_spacing_ft', None) or 0)
         details["reasons"].append(
-            f"Spacing at {spacing_ratio*100:.0f}% of limit ({data.get('post_spacing_ft', 0):.2f} ft vs {out.max_spacing_ft:.2f} ft max)"
+            f"Spacing at {spacing_ratio*100:.0f}% of limit ({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
         )
     elif moment_ratio is not None and moment_ratio > 1.0:
         status = "RED"
+        m_demand = details.get("M_demand_ft_lb", getattr(out, 'M_demand_ft_lb', None) or 0)
+        m_allow = details.get("M_allow_ft_lb", getattr(out, 'M_allow_ft_lb', None) or 0)
         details["reasons"].append(
-            f"Moment exceeds allowable by {(moment_ratio-1.0)*100:.0f}% ({out.M_demand_ft_lb:.1f} ft·lb vs {out.M_allow_ft_lb:.1f} ft·lb allowable)"
+            f"Moment exceeds allowable by {(moment_ratio-1.0)*100:.0f}% ({m_demand:.1f} ft·lb vs {m_allow:.1f} ft·lb allowable)"
         )
     
     # Check for YELLOW conditions (only if not already RED)
     if status != "RED":
         if spacing_ratio is not None and 1.0 < spacing_ratio <= 1.15:
             status = "YELLOW"
+            max_spacing = details.get("max_spacing_ft", out.max_spacing_ft if hasattr(out, 'max_spacing_ft') else 0)
             details["reasons"].append(
-                f"Spacing at {spacing_ratio*100:.0f}% of limit ({data.get('post_spacing_ft', 0):.2f} ft vs {out.max_spacing_ft:.2f} ft max)"
+                f"Spacing at {spacing_ratio*100:.0f}% of limit ({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
             )
         elif moment_ratio is not None and 0.85 <= moment_ratio < 1.0:
             status = "YELLOW"
+            m_demand = details.get("M_demand_ft_lb", 0)
+            m_allow = details.get("M_allow_ft_lb", 0)
             details["reasons"].append(
-                f"Moment at {moment_ratio*100:.0f}% of allowable ({out.M_demand_ft_lb:.1f} ft·lb vs {out.M_allow_ft_lb:.1f} ft·lb allowable)"
+                f"Moment at {moment_ratio*100:.0f}% of allowable ({m_demand:.1f} ft·lb vs {m_allow:.1f} ft·lb allowable)"
             )
     
     # Check for warnings that might elevate status
