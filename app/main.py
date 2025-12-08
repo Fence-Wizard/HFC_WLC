@@ -93,6 +93,7 @@ async def review(
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
     job_name: str = Form(""),
+    post_size: str = Form(""),
 ):
     data = {
         "zip_code": zip_code,
@@ -103,6 +104,7 @@ async def review(
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
         "job_name": job_name,
+        "post_size": post_size or "",
     }
 
     inp = EstimateInput(
@@ -111,6 +113,7 @@ async def review(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        post_size=post_size or None,
     )
     out = calculate(inp)
     risk = classify_risk(out)

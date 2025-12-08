@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Optional
 
 from windcalc.schemas import (
     EstimateInput,
@@ -17,6 +17,25 @@ from windcalc.schemas import (
 VELOCITY_PRESSURE_COEFFICIENT = 0.00256
 DESIGN_PRESSURE_MULTIPLIER = 1.2  # Simplified multiplier - replace with proper Cf coefficients
 EXPOSURE_FACTORS: Dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
+
+# Post catalog with structural capacities
+_POST_CATALOG: Dict[str, Dict[str, float]] = {
+    '2-3/8" SS40': {
+        "max_load_lb": 700.0,   # allowable load per post (tune from your Excel or PE tables)
+        "footing_diameter_in": 12.0,
+        "embedment_in": 30.0,
+    },
+    '2-7/8" SS40': {
+        "max_load_lb": 1200.0,
+        "footing_diameter_in": 16.0,
+        "embedment_in": 36.0,
+    },
+    '3-1/2" SS40': {
+        "max_load_lb": 1800.0,
+        "footing_diameter_in": 18.0,
+        "embedment_in": 42.0,
+    },
+}
 
 
 def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
@@ -66,8 +85,31 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     total_load_lb = round(pressure_psf * area, 2)
     load_per_post_lb = round(total_load_lb / 2, 2)
 
-    recommended = _recommend_member(load_per_post_lb)
+    # Honour post override when selecting member
+    post_size_override = getattr(data, "post_size", None)
+    recommended = _recommend_member_with_override(load_per_post_lb, post_size_override)
+
     warnings = _build_warnings(data, pressure_psf, load_per_post_lb)
+
+    # Compute max spacing for a fixed post, if we know its capacity
+    max_spacing_ft: Optional[float] = None
+    if post_size_override and post_size_override in _POST_CATALOG:
+        cap = _POST_CATALOG[post_size_override]["max_load_lb"]
+        if pressure_psf > 0 and data.height_total_ft > 0:
+            max_spacing_ft = round(
+                2 * cap / (pressure_psf * data.height_total_ft),
+                2,
+            )
+
+            # If current spacing exceeds the computed maximum, flag it
+            if data.post_spacing_ft > max_spacing_ft:
+                warnings.append(
+                    f"At {data.wind_speed_mph:.0f} mph and {data.height_total_ft:.1f} ft, "
+                    f'post {post_size_override} should not exceed about {max_spacing_ft:.2f} ft spacing. '
+                    f'Current spacing {data.post_spacing_ft:.2f} ft is outside this simplified limit. '
+                    "Consider decreasing spacing, increasing post size, or obtaining an engineered design."
+                )
+
     assumptions = _assumptions(data)
 
     return EstimateOutput(
@@ -78,6 +120,7 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         recommended=recommended,
         warnings=warnings,
         assumptions=assumptions,
+        max_spacing_ft=max_spacing_ft,
     )
 
 
@@ -87,6 +130,35 @@ def _recommend_member(load_per_post: float) -> Recommendation:
     if load_per_post < 1000:
         return Recommendation(post_size="2-7/8\" SS40", footing_diameter_in=12, embedment_in=30)
     return Recommendation(post_size="3-1/2\" SS40", footing_diameter_in=16, embedment_in=36)
+
+
+def _recommend_member_with_override(
+    load_per_post: float,
+    post_size_override: Optional[str],
+) -> Recommendation:
+    """
+    Choose post + footing.
+
+    - If no override is given, fall back to the existing simplified _recommend_member().
+    - If an override is given and recognized in _POST_CATALOG:
+        * keep that post size,
+        * use its footing from the catalog,
+        * and let spacing checks / warnings handle overloads.
+    """
+    if not post_size_override or post_size_override.lower() in {"auto", "recommended", ""}:
+        # Behavior exactly as before
+        return _recommend_member(load_per_post)
+
+    cfg = _POST_CATALOG.get(post_size_override)
+    if cfg is None:
+        # Unknown string -> fall back
+        return _recommend_member(load_per_post)
+
+    return Recommendation(
+        post_size=post_size_override,
+        footing_diameter_in=cfg["footing_diameter_in"],
+        embedment_in=cfg["embedment_in"],
+    )
 
 
 def _build_warnings(data: EstimateInput, pressure: float, load_per_post: float) -> list[str]:
