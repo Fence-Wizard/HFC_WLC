@@ -1,24 +1,90 @@
+/* Global layout / light theme */
+
 body {
   font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f5f5f5;
+  color: #222;
 }
+
 .container {
   max-width: 800px;
   margin: 0 auto;
+  padding: 1.5rem 1rem;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
 }
+
+h1 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+h2,
+h3 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Forms */
+
 label {
   display: block;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  font-weight: 600;
 }
+
 input,
 select,
 button {
   margin-top: 0.25rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   display: block;
+  font-size: 1rem;
+  font-family: inherit;
 }
+
+/* Force light, consistent controls (overrides browser dark mode styling) */
+input,
+select,
+textarea {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #ffffff;
+  color: #222;
+  box-sizing: border-box;
+}
+
+/* Optional: subtle focus ring */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #0077cc;
+  box-shadow: 0 0 0 2px rgba(0, 119, 204, 0.2);
+}
+
 button {
   padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #0077cc;
+  background: #0077cc;
+  color: #ffffff;
+  cursor: pointer;
 }
+
+button:hover {
+  background: #005fa3;
+  border-color: #005fa3;
+}
+
+/* Map thumbnails / layout */
+
 .map-row {
   display: flex;
   flex-wrap: wrap;
@@ -45,12 +111,15 @@ button {
   margin-top: 0.25rem;
 }
 
+/* Help cards & small text */
+
 .help-card {
-  border: 1px solid #555;
-  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  padding: 0.75rem 0.9rem;
   margin: 0.5rem 0 1rem 0;
-  font-size: 0.85rem;
-  background: #222;
+  font-size: 0.9rem;
+  background: #fafafa; /* light instead of #222 */
+  border-radius: 4px;
 }
 
 .small,
@@ -63,5 +132,38 @@ small {
   margin-top: 0.25rem;
   margin-bottom: 0.5rem;
   color: #666;
-  font-size: 0.9em;
+  font-size: 0.85rem;
+}
+
+/* Basic responsive tweaks for mobile */
+
+@media (max-width: 640px) {
+  .container {
+    max-width: 100%;
+    margin: 0;
+    padding: 1rem 0.75rem;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+  }
+
+  .map-row {
+    flex-direction: column;
+  }
+
+  .map-card {
+    max-width: 100%;
+  }
+
+  button {
+    width: 100%;
+    text-align: center;
+  }
 }
