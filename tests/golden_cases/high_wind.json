@@ -1,0 +1,22 @@
+{
+  "name": "high_wind_calculation",
+  "input": {
+    "fence": {
+      "height": 8.0,
+      "width": 50.0,
+      "material": "vinyl",
+      "location": "Miami, FL"
+    },
+    "wind": {
+      "wind_speed": 140.0,
+      "exposure_category": "C",
+      "importance_factor": 1.15
+    },
+    "project_name": "Hurricane Zone Fence"
+  },
+  "expected_output": {
+    "design_pressure_min": 60.0,
+    "design_pressure_max": 70.0,
+    "has_calculation_notes": true
+  }
+}
