@@ -48,7 +48,14 @@ class WindLoadResult(BaseModel):
 class Recommendation(BaseModel):
     """Recommended post and footing selection."""
 
-    post_size: Optional[str] = Field(None, description="Recommended post size")
+    post_key: Optional[str] = Field(None, description="Catalog key for the recommended post")
+    post_label: Optional[str] = Field(
+        None, description="Human-friendly label sourced from POST_TYPES"
+    )
+    # Kept for backward compatibility with legacy UI strings; prefer post_key/post_label.
+    post_size: Optional[str] = Field(
+        None, description="Deprecated: legacy post size label (use post_key instead)"
+    )
     footing_diameter_in: Optional[float] = Field(None, description="Footing diameter in inches")
     embedment_in: Optional[float] = Field(None, description="Embedment depth in inches")
 
@@ -61,7 +68,13 @@ class EstimateInput(BaseModel):
     post_spacing_ft: float = Field(..., gt=0, description="Spacing between posts in feet")
     exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
     soil_type: Optional[str] = Field(None, description="Optional soil descriptor")
-    post_size: Optional[str] = Field(None, description="Optional post size override (e.g., '2-3/8\" SS40')")
+    post_key: Optional[str] = Field(
+        None, description="Optional post key override (e.g., '2_3_8_SS40')"
+    )
+    post_size: Optional[str] = Field(
+        None,
+        description="Legacy post size override string (e.g., '2-3/8\" SS40'); prefer post_key",
+    )
 
     @computed_field
     @property

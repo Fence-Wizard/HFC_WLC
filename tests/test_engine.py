@@ -18,7 +18,8 @@ def test_calculate_bay_outputs():
     assert result.area_per_bay_ft2 == 80
     assert result.total_load_lb > 0
     assert result.load_per_post_lb == result.total_load_lb / 2
-    assert result.recommended.post_size
+    assert result.recommended.post_key
+    assert result.recommended.post_label
     assert result.assumptions
 
 

@@ -10,9 +10,11 @@
   <li>Exposure: {{ data.exposure }}</li>
   <li>Height: {{ data.height_total_ft }} ft</li>
   <li>Post spacing: <strong>{{ data.post_spacing_ft }} ft</strong></li>
+  {% set current_post_key = data.post_key or result.recommended.post_key or "" %}
+  {% set current_post_label = post_labels.get(current_post_key) or result.recommended.post_label %}
   <li>
     Post type (current):
-    {{ data.post_size or result.recommended.post_size or "Auto (based on load)" }}
+    {{ current_post_label or "Auto (based on load)" }}
   </li>
   <li>Soil type: {{ data.soil_type }}</li>
   <li>Job: {{ data.job_name }}</li>
@@ -26,7 +28,7 @@
   <li>Load per post: <strong>{{ "%.0f"|format(result.load_per_post_lb) }} lb</strong></li>
   <li>
     Recommended post:
-    {{ result.recommended.post_size or 'N/A' }}
+    {{ result.recommended.post_label or result.recommended.post_key or 'N/A' }}
   </li>
   <li>
     Footing:
@@ -72,60 +74,19 @@
     required
   />
 
-  <label for="post_size">Post type:</label>
-  <select id="post_size" name="post_size">
-    {% set current_post = data.post_size or result.recommended.post_size or "" %}
+  <label for="post_key">Post type:</label>
+  <select id="post_key" name="post_key">
+    {% set current_post = data.post_key or "" %}
     <option value="" {% if not current_post %}selected{% endif %}>
       Auto (based on load)
     </option>
 
-    <!-- Steel Pipe options -->
-    <option value='1 7/8" Steel Pipe'
-      {% if current_post == '1 7/8" Steel Pipe' %}selected{% endif %}>
-      1 7/8" Steel Pipe
+    {% for opt in post_options %}
+    <option value="{{ opt.key }}"
+      {% if opt.key == current_post %}selected{% endif %}>
+      {{ opt.label }}
     </option>
-    <option value='2 3/8" Steel Pipe'
-      {% if current_post == '2 3/8" Steel Pipe' %}selected{% endif %}>
-      2 3/8" Steel Pipe
-    </option>
-    <option value='2 7/8" Steel Pipe'
-      {% if current_post == '2 7/8" Steel Pipe' %}selected{% endif %}>
-      2 7/8" Steel Pipe
-    </option>
-    <option value='3 1/2" Steel Pipe'
-      {% if current_post == '3 1/2" Steel Pipe' %}selected{% endif %}>
-      3 1/2" Steel Pipe
-    </option>
-    <option value='4" Steel Pipe'
-      {% if current_post == '4" Steel Pipe' %}selected{% endif %}>
-      4" Steel Pipe
-    </option>
-    <option value='6 5/8" Steel Pipe'
-      {% if current_post == '6 5/8" Steel Pipe' %}selected{% endif %}>
-      6 5/8" Steel Pipe
-    </option>
-    <option value='8 5/8" Steel Pipe'
-      {% if current_post == '8 5/8" Steel Pipe' %}selected{% endif %}>
-      8 5/8" Steel Pipe
-    </option>
-
-    <!-- C-shape options -->
-    <option value='1 7/8" x 1 5/8" x .105" C-Shape'
-      {% if current_post == '1 7/8" x 1 5/8" x .105" C-Shape' %}selected{% endif %}>
-      1 7/8" x 1 5/8" x .105" C-Shape
-    </option>
-    <option value='1 7/8" x 1 5/8" x .121" C-Shape'
-      {% if current_post == '1 7/8" x 1 5/8" x .121" C-Shape' %}selected{% endif %}>
-      1 7/8" x 1 5/8" x .121" C-Shape
-    </option>
-    <option value='2 1/4" x 1 5/8" x .121" C-Shape'
-      {% if current_post == '2 1/4" x 1 5/8" x .121" C-Shape' %}selected{% endif %}>
-      2 1/4" x 1 5/8" x .121" C-Shape
-    </option>
-    <option value='3 1/4" x 2 1/2" x .130" C-Shape'
-      {% if current_post == '3 1/4" x 2 1/2" x .130" C-Shape' %}selected{% endif %}>
-      3 1/4" x 2 1/2" x .130" C-Shape
-    </option>
+    {% endfor %}
   </select>
 
   <button type="submit">Recalculate</button>
@@ -198,7 +159,7 @@
 
 <h3>PDF</h3>
 <a
-  href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}{% if data.post_size %}&post_size={{ data.post_size }}{% endif %}"
+  href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}{% if data.post_key %}&post_key={{ data.post_key }}{% endif %}"
   >Download PDF report</a
 >
 
