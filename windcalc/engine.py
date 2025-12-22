@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 from windcalc.post_catalog import (
     POST_TYPES,
@@ -43,11 +43,6 @@ _LEGACY_POST_SIZE_TO_KEY: Dict[str, str] = {
 }
 
 _LABEL_TO_KEY: Dict[str, str] = {post.label: key for key, post in POST_TYPES.items()}
-_POST_FOOTINGS: Dict[str, Tuple[float, float]] = {
-    "2_3_8_SS40": (10.0, 24.0),
-    "2_7_8_SS40": (12.0, 30.0),
-    "3_1_2_SS40": (16.0, 36.0),
-}
 _RECOMMENDATION_THRESHOLDS: tuple[tuple[float, str], ...] = (
     (500, "2_3_8_SS40"),
     (1000, "2_7_8_SS40"),
@@ -71,8 +66,13 @@ def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> 
     Build a Recommendation from a catalog key, pulling labels/footings from catalogs.
     """
     post = POST_TYPES.get(post_key)
-    footing_dia, embedment = _POST_FOOTINGS.get(post_key, (12.0, 30.0))
-    label = source_label or (post.label if post else post_key)
+    if post is None:
+        footing_dia, embedment = (12.0, 30.0)
+        label = source_label or post_key
+    else:
+        footing_dia = post.footing_diameter_in or 12.0
+        embedment = post.footing_embedment_in or 30.0
+        label = source_label or post.label
     return Recommendation(
         post_key=post_key,
         post_label=label,

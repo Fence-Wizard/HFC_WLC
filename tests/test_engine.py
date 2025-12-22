@@ -20,6 +20,12 @@ def test_calculate_bay_outputs():
     assert result.load_per_post_lb == result.total_load_lb / 2
     assert result.recommended.post_key
     assert result.recommended.post_label
+    # Footing comes from catalog for the selected post
+    from windcalc.post_catalog import POST_TYPES  # inline import to avoid circulars at top
+
+    post = POST_TYPES[result.recommended.post_key]
+    assert result.recommended.footing_diameter_in == post.footing_diameter_in
+    assert result.recommended.embedment_in == post.footing_embedment_in
     assert result.assumptions
 
 
@@ -48,6 +54,24 @@ def test_warning_triggered_for_tall_fence():
     result = calculate(inp)
 
     assert any("height exceeds" in w.lower() for w in result.warnings)
+
+
+def test_manual_post_key_uses_catalog_footing():
+    from windcalc.post_catalog import POST_TYPES
+
+    inp = EstimateInput(
+        wind_speed_mph=100,
+        height_total_ft=6,
+        post_spacing_ft=8,
+        exposure="C",
+        post_key="2_3_8_SS40",
+    )
+    result = calculate(inp)
+
+    post = POST_TYPES["2_3_8_SS40"]
+    assert result.recommended.post_key == "2_3_8_SS40"
+    assert result.recommended.footing_diameter_in == post.footing_diameter_in
+    assert result.recommended.embedment_in == post.footing_embedment_in
 
 
 def test_legacy_api_still_available():
