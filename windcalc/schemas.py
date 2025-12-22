@@ -88,6 +88,12 @@ class EstimateInput(BaseModel):
         description="Legacy post size override string (e.g., '2-3/8\" SS40'); prefer post_key",
     )
 
+    @computed_field
+    @property
+    def area_per_bay_ft2(self) -> float:
+        """Calculated tributary area for a single bay."""
+        return self.height_total_ft * self.post_spacing_ft
+
 
 class SharedResult(BaseModel):
     pressure_psf: float

@@ -248,6 +248,16 @@ def test_unknown_legacy_label_falls_back_to_auto_with_warning():
         assert result.recommended.post_key is not None
 
 
+def test_estimate_input_area_per_bay():
+    inp = EstimateInput(
+        wind_speed_mph=120,
+        height_total_ft=8,
+        post_spacing_ft=10,
+        exposure="C",
+    )
+    assert inp.area_per_bay_ft2 == 80
+
+
 def test_legacy_api_still_available():
     fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test")
     wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)
