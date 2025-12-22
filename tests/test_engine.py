@@ -56,6 +56,36 @@ def test_warning_triggered_for_tall_fence():
     assert any("height exceeds" in w.lower() for w in result.warnings)
 
 
+def test_line_post_bending_over_one_is_advisory_not_fail():
+    """
+    For line posts, bending utilization > 1.0 should not fail overall status.
+    """
+    from app.main import classify_risk
+
+    inp = EstimateInput(
+        wind_speed_mph=150,
+        height_total_ft=20,
+        post_spacing_ft=5,
+        exposure="C",
+        post_role="line_post",
+    )
+    out = calculate(inp)
+
+    status, details = classify_risk(
+        out,
+        {
+            "post_spacing_ft": inp.post_spacing_ft,
+            "post_role": "line_post",
+        },
+    )
+
+    assert status != "RED"
+    assert any(
+        "Advisory – Simplified Cantilever Check (Conservative)" in reason
+        for reason in details.get("reasons", [])
+    )
+
+
 def test_manual_post_key_uses_catalog_footing():
     from windcalc.post_catalog import POST_TYPES
 

@@ -68,6 +68,10 @@ class EstimateInput(BaseModel):
     post_spacing_ft: float = Field(..., gt=0, description="Spacing between posts in feet")
     exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
     soil_type: Optional[str] = Field(None, description="Optional soil descriptor")
+    post_role: str = Field(
+        default="line_post",
+        description="Post role (line_post or terminal_post) for bending treatment",
+    )
     post_key: Optional[str] = Field(
         None, description="Optional post key override (e.g., '2_3_8_SS40')"
     )
