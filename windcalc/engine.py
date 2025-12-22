@@ -193,15 +193,6 @@ def calculate(data: EstimateInput) -> EstimateOutput:
             load_per_post_lb=load_per_post_lb,
         )
 
-        if not moment_ok:
-            post = POST_TYPES[effective_post_key]
-            warnings.append(
-                "Simplified bending check indicates the post is above its bending capacity: "
-                f"{M_demand_lb_in/12:.1f} ft·lb demand vs "
-                f"{M_allow_lb_in/12:.1f} ft·lb simplified capacity for post {post.label} "
-                f"({post.fy_ksi:.0f} ksi steel). Consider increasing post size or seeking PE review."
-            )
-
     assumptions = _assumptions(data)
 
     return EstimateOutput(

@@ -260,12 +260,14 @@ def classify_risk(
     if moment_ratio is not None:
         m_demand = details.get("M_demand_ft_lb", 0)
         m_allow = details.get("M_allow_ft_lb", 0)
-        details["reasons"].append(
-            "Bending capacity check (advisory): "
-            f"{moment_ratio*100:.0f}% utilization "
-            f"({m_demand:.1f} ft·lb demand vs {m_allow:.1f} ft·lb simplified capacity; "
-            "spacing tables remain the governing limit)."
+        msg = (
+            "Bending utilization: "
+            f"{moment_ratio*100:.0f}% "
+            f"({m_demand:.1f} ft·lb demand / {m_allow:.1f} ft·lb capacity)"
         )
+        if moment_ratio > 1.0:
+            msg += " — exceeds capacity"
+        details["reasons"].append(msg)
 
     # --- If we have no ratios at all, fall back to warnings only ---
     if spacing_ratio is None and moment_ratio is None:
