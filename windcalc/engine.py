@@ -16,6 +16,8 @@ from windcalc.schemas import (
     EstimateInput,
     EstimateOutput,
     Recommendation,
+    SharedResult,
+    BlockResult,
     WindConditions,
     WindLoadRequest,
     WindLoadResult,
@@ -158,15 +160,96 @@ def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
     )
 
 
+def _compute_block(
+    role: str,
+    post_key: Optional[str],
+    load_per_post_lb: float,
+    data: EstimateInput,
+    exposure_factor: float,
+    pressure_psf: float,
+    area: float,
+    total_load_lb: float,
+) -> BlockResult:
+    """Compute block results for a given role and post key."""
+    warnings_list = _build_warnings(data, pressure_psf, load_per_post_lb)
+
+    effective_key = None
+    recommended = None
+
+    if post_key:
+        recommended = _build_recommendation_for_post_key(post_key, source="manual")
+        effective_key = post_key
+    else:
+        recommended = _recommend_auto_by_load(load_per_post_lb)
+        effective_key = recommended.post_key
+
+    max_spacing_ft: Optional[float] = None
+    M_demand_lb_in: Optional[float] = None
+    M_allow_lb_in: Optional[float] = None
+    moment_ok: Optional[bool] = None
+
+    if effective_key and effective_key in POST_TYPES:
+        table_spacing = compute_max_spacing_from_tables(
+            post_key=effective_key,
+            wind_speed_mph=data.wind_speed_mph,
+            height_ft=data.height_total_ft,
+        )
+
+        if table_spacing is not None:
+            max_spacing_ft = round(table_spacing, 2)
+        else:
+            max_spacing_ft = round(
+                compute_max_spacing_cf(
+                    post_key=effective_key,
+                    wind_speed_mph=data.wind_speed_mph,
+                    exposure=data.exposure.upper(),
+                ),
+                2,
+            )
+
+        if data.post_spacing_ft > max_spacing_ft:
+            post = POST_TYPES[effective_key]
+            warnings_list.append(
+                f"For post {post.label} at {data.wind_speed_mph:.0f} mph and "
+                f"exposure {data.exposure}, max recommended spacing is about "
+                f"{max_spacing_ft:.2f} ft; current spacing {data.post_spacing_ft:.2f} ft "
+                "exceeds this simplified limit."
+            )
+
+        M_demand_lb_in, M_allow_lb_in, moment_ok = compute_moment_check(
+            post_key=effective_key,
+            height_ft=data.height_total_ft,
+            load_per_post_lb=load_per_post_lb,
+        )
+
+    # Status logic
+    status = "GREEN"
+    if max_spacing_ft is not None and data.post_spacing_ft > max_spacing_ft:
+        status = "RED"
+    if role == "terminal" and moment_ok is False:
+        status = "RED"
+        warnings_list.append(
+            "Terminal bending exceeds capacity; increase post size or adjust configuration."
+        )
+
+    return BlockResult(
+        post_key=effective_key,
+        post_label=recommended.post_label if recommended else None,
+        recommended=recommended,
+        warnings=warnings_list,
+        assumptions=_assumptions(data),
+        max_spacing_ft=max_spacing_ft,
+        M_demand_ft_lb=round(M_demand_lb_in / 12.0, 1) if M_demand_lb_in is not None else None,
+        M_allow_ft_lb=round(M_allow_lb_in / 12.0, 1) if M_allow_lb_in is not None else None,
+        moment_ok=moment_ok,
+        status=status,
+    )
+
+
 def calculate(data: EstimateInput) -> EstimateOutput:
     """
-    Calculate bay-level loads for the wizard-friendly workflow.
-
-    The math intentionally mirrors the legacy placeholder logic but returns
-    structured outputs used by the FastAPI wizard. All values are rounded to
-    sensible precision for display purposes.
+    Calculate bay-level loads with separate line and terminal post results.
     """
-
     exposure_factor = EXPOSURE_FACTORS.get(data.exposure.upper(), EXPOSURE_FACTORS["C"])
     velocity_pressure = VELOCITY_PRESSURE_COEFFICIENT * (data.wind_speed_mph**2)
     pressure_psf = round(velocity_pressure * DESIGN_PRESSURE_MULTIPLIER * exposure_factor, 2)
@@ -175,74 +258,61 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     total_load_lb = round(pressure_psf * area, 2)
     load_per_post_lb = round(total_load_lb / 2, 2)
 
-    # Resolve post override: prefer explicit post_key, normalize legacy post_size as fallback
-    post_key_override = getattr(data, "post_key", None)
-    post_size_override = getattr(data, "post_size", None)
-    normalized_post_key = post_key_override or _normalize_post_key(post_size_override)
-    recommended = _recommend_member_with_override(
-        load_per_post_lb, post_size_override, normalized_post_key
-    )
-    effective_post_key = recommended.post_key or normalized_post_key
+    # Resolve line/terminal keys (fall back to deprecated single key if provided)
+    line_post_key = data.line_post_key or data.post_key
+    terminal_post_key = data.terminal_post_key or data.post_key
 
-    warnings = _build_warnings(data, pressure_psf, load_per_post_lb)
-
-    # Compute max spacing using Cf-based method if post is specified
-    max_spacing_ft: Optional[float] = None
-    M_demand_lb_in: Optional[float] = None
-    M_allow_lb_in: Optional[float] = None
-    moment_ok: bool = True
-
-    if effective_post_key and effective_post_key in POST_TYPES:
-        # Try table-based value first (more accurate)
-        table_spacing = compute_max_spacing_from_tables(
-            post_key=effective_post_key,
-            wind_speed_mph=data.wind_speed_mph,
-            height_ft=data.height_total_ft,
-        )
-
-        if table_spacing is not None:
-            max_spacing_ft = round(table_spacing, 2)
-        else:
-            # Fallback to Cf-based approximation if tables are missing
-            max_spacing_ft = round(
-                compute_max_spacing_cf(
-                    post_key=effective_post_key,
-                    wind_speed_mph=data.wind_speed_mph,
-                    exposure=data.exposure.upper(),
-                ),
-                2,
-            )
-
-        # If current spacing exceeds the computed maximum, flag it
-        if data.post_spacing_ft > max_spacing_ft:
-            post = POST_TYPES[effective_post_key]
-            warnings.append(
-                f"For post {post.label} at {data.wind_speed_mph:.0f} mph and "
-                f"exposure {data.exposure}, max recommended spacing is about "
-                f"{max_spacing_ft:.2f} ft; current spacing {data.post_spacing_ft:.2f} ft "
-                "exceeds this simplified limit."
-            )
-
-        # Bending moment check
-        M_demand_lb_in, M_allow_lb_in, moment_ok = compute_moment_check(
-            post_key=effective_post_key,
-            height_ft=data.height_total_ft,
-            load_per_post_lb=load_per_post_lb,
-        )
-
-    assumptions = _assumptions(data)
-
-    return EstimateOutput(
+    shared = SharedResult(
         pressure_psf=pressure_psf,
         area_per_bay_ft2=round(area, 2),
         total_load_lb=total_load_lb,
         load_per_post_lb=load_per_post_lb,
-        recommended=recommended,
-        warnings=warnings,
-        assumptions=assumptions,
-        max_spacing_ft=max_spacing_ft,
-        M_demand_ft_lb=round(M_demand_lb_in / 12.0, 1) if M_demand_lb_in is not None else None,
-        M_allow_ft_lb=round(M_allow_lb_in / 12.0, 1) if M_allow_lb_in is not None else None,
+    )
+
+    line_block = _compute_block(
+        role="line",
+        post_key=line_post_key,
+        load_per_post_lb=load_per_post_lb,
+        data=data,
+        exposure_factor=exposure_factor,
+        pressure_psf=pressure_psf,
+        area=area,
+        total_load_lb=total_load_lb,
+    )
+
+    terminal_block = _compute_block(
+        role="terminal",
+        post_key=terminal_post_key,
+        load_per_post_lb=load_per_post_lb,
+        data=data,
+        exposure_factor=exposure_factor,
+        pressure_psf=pressure_psf,
+        area=area,
+        total_load_lb=total_load_lb,
+    )
+
+    overall_status = "GREEN"
+    if line_block.status == "RED" or terminal_block.status == "RED":
+        overall_status = "RED"
+    elif line_block.status == "YELLOW" or terminal_block.status == "YELLOW":
+        overall_status = "YELLOW"
+
+    # Legacy compatibility: map to line block
+    return EstimateOutput(
+        shared=shared,
+        line=line_block,
+        terminal=terminal_block,
+        overall_status=overall_status,
+        pressure_psf=shared.pressure_psf,
+        area_per_bay_ft2=shared.area_per_bay_ft2,
+        total_load_lb=shared.total_load_lb,
+        load_per_post_lb=shared.load_per_post_lb,
+        recommended=line_block.recommended,
+        warnings=(line_block.warnings or []) + (terminal_block.warnings or []),
+        assumptions=line_block.assumptions,
+        max_spacing_ft=line_block.max_spacing_ft,
+        M_demand_ft_lb=line_block.M_demand_ft_lb,
+        M_allow_ft_lb=line_block.M_allow_ft_lb,
     )
 
 

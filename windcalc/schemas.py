@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -68,17 +68,45 @@ class EstimateInput(BaseModel):
     post_spacing_ft: float = Field(..., gt=0, description="Spacing between posts in feet")
     exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
     soil_type: Optional[str] = Field(None, description="Optional soil descriptor")
+    # New dual post selections
+    line_post_key: Optional[str] = Field(
+        None, description="Optional line post key override (e.g., '2_3_8_SS40')"
+    )
+    terminal_post_key: Optional[str] = Field(
+        None, description="Optional terminal post key override (e.g., '3_1_2_SS40')"
+    )
+    # Deprecated single selections (kept for backward compatibility)
     post_role: Literal["line", "terminal"] = Field(
         default="line",
-        description="Post role (line or terminal) for bending treatment",
+        description="Deprecated: single post role; prefer line/terminal post keys",
     )
     post_key: Optional[str] = Field(
-        None, description="Optional post key override (e.g., '2_3_8_SS40')"
+        None, description="Deprecated: single post key override (prefer line/terminal keys)"
     )
     post_size: Optional[str] = Field(
         None,
         description="Legacy post size override string (e.g., '2-3/8\" SS40'); prefer post_key",
     )
+
+
+class SharedResult(BaseModel):
+    pressure_psf: float
+    area_per_bay_ft2: float
+    total_load_lb: float
+    load_per_post_lb: float
+
+
+class BlockResult(BaseModel):
+    post_key: Optional[str] = None
+    post_label: Optional[str] = None
+    recommended: Recommendation
+    warnings: List[str] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+    max_spacing_ft: Optional[float] = None
+    M_demand_ft_lb: Optional[float] = None
+    M_allow_ft_lb: Optional[float] = None
+    moment_ok: Optional[bool] = None
+    status: str = "GREEN"
 
     @computed_field
     @property
@@ -91,16 +119,22 @@ class EstimateInput(BaseModel):
 class EstimateOutput(BaseModel):
     """Wind load estimate for a single bay."""
 
-    pressure_psf: float = Field(..., description="Applied pressure in psf")
-    area_per_bay_ft2: float = Field(..., description="Area of a single bay in square feet")
-    total_load_lb: float = Field(..., description="Total load on a bay in pounds")
-    load_per_post_lb: float = Field(..., description="Load per post in pounds")
+    # Combined response
+    shared: SharedResult
+    line: BlockResult
+    terminal: BlockResult
+    overall_status: str = "GREEN"
+    # Legacy top-level fields (mapped to line block for compatibility)
+    pressure_psf: float = Field(..., description="Applied pressure in psf (legacy; line block)")
+    area_per_bay_ft2: float = Field(..., description="Area of a single bay in square feet (legacy; line block)")
+    total_load_lb: float = Field(..., description="Total load on a bay in pounds (legacy; line block)")
+    load_per_post_lb: float = Field(..., description="Load per post in pounds (legacy; line block)")
     recommended: Recommendation
     warnings: List[str] = Field(default_factory=list)
     assumptions: List[str] = Field(default_factory=list)
-    max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (if fixed)")
-    M_demand_ft_lb: Optional[float] = Field(None, description="Bending moment demand in ft·lb (if post specified)")
-    M_allow_ft_lb: Optional[float] = Field(None, description="Allowable bending moment in ft·lb (if post specified)")
+    max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (legacy; line block)")
+    M_demand_ft_lb: Optional[float] = Field(None, description="Bending moment demand in ft·lb (legacy; line block)")
+    M_allow_ft_lb: Optional[float] = Field(None, description="Allowable bending moment in ft·lb (legacy; line block)")
 
 
 __all__ = [

@@ -82,7 +82,7 @@ def test_line_post_bending_over_one_is_advisory_not_fail():
     assert status != "RED"
     assert any(
         "Advisory – Simplified cantilever bending check (conservative)" in reason
-        for reason in details.get("reasons", [])
+        for reason in details.get("advanced_reasons", [])
     )
 
 
@@ -154,21 +154,21 @@ def test_swapping_post_key_changes_bending_and_spacing():
         height_total_ft=8,
         post_spacing_ft=8,
         exposure="C",
-        post_key="2_3_8_SS40",
+        line_post_key="2_3_8_SS40",
     )
-    large = small.model_copy(update={"post_key": "3_1_2_SS40"})
+    large = small.model_copy(update={"line_post_key": "3_1_2_SS40"})
 
     small_out = calculate(small)
     large_out = calculate(large)
 
-    assert small_out.recommended.post_key == "2_3_8_SS40"
-    assert large_out.recommended.post_key == "3_1_2_SS40"
+    assert small_out.line.post_key == "2_3_8_SS40"
+    assert large_out.line.post_key == "3_1_2_SS40"
 
     # Expect different bending capacity or spacing limits when swapping post
-    assert small_out.M_allow_ft_lb != large_out.M_allow_ft_lb or (
-        small_out.max_spacing_ft is not None
-        and large_out.max_spacing_ft is not None
-        and small_out.max_spacing_ft != large_out.max_spacing_ft
+    assert small_out.line.M_allow_ft_lb != large_out.line.M_allow_ft_lb or (
+        small_out.line.max_spacing_ft is not None
+        and large_out.line.max_spacing_ft is not None
+        and small_out.line.max_spacing_ft != large_out.line.max_spacing_ft
     )
 
 
@@ -185,18 +185,18 @@ def test_auto_and_manual_same_post_have_same_footing():
     )
     auto_out = calculate(auto_inp)
 
-    manual_inp = auto_inp.model_copy(update={"post_key": "2_3_8_SS40"})
+    manual_inp = auto_inp.model_copy(update={"line_post_key": "2_3_8_SS40"})
     manual_out = calculate(manual_inp)
 
-    assert auto_out.recommended.post_key == "2_3_8_SS40"
-    assert manual_out.recommended.post_key == "2_3_8_SS40"
-    assert auto_out.recommended.footing_diameter_in == manual_out.recommended.footing_diameter_in
-    assert auto_out.recommended.embedment_in == manual_out.recommended.embedment_in
+    assert auto_out.line.post_key == "2_3_8_SS40"
+    assert manual_out.line.post_key == "2_3_8_SS40"
+    assert auto_out.line.recommended.footing_diameter_in == manual_out.line.recommended.footing_diameter_in
+    assert auto_out.line.recommended.embedment_in == manual_out.line.recommended.embedment_in
 
 
 def test_bending_output_single_location():
     """
-    Bending utilization should appear only once in risk reasons, not in warnings.
+    Bending utilization should appear only once (advanced for line posts), not in warnings.
     """
     from app.main import classify_risk
 
@@ -205,8 +205,8 @@ def test_bending_output_single_location():
         height_total_ft=12,
         post_spacing_ft=6,
         exposure="C",
-        post_key="2_3_8_SS40",
-        post_role="line_post",
+        line_post_key="2_3_8_SS40",
+        post_role="line",
     )
     out = calculate(inp)
 
@@ -215,14 +215,15 @@ def test_bending_output_single_location():
         {
             "post_spacing_ft": inp.post_spacing_ft,
             "post_role": inp.post_role,
-            "post_key": inp.post_key,
         },
     )
 
     reasons = " ".join(details.get("reasons", []))
     warnings_joined = " ".join(out.warnings)
+    adv = " ".join(details.get("advanced_reasons", []))
 
-    assert reasons.lower().count("bending utilization") == 1
+    assert reasons.lower().count("bending utilization") == 0
+    assert adv.lower().count("bending utilization") == 1
     assert "bending utilization" not in warnings_joined.lower()
 
 
