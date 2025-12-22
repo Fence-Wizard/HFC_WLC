@@ -67,7 +67,7 @@ def test_line_post_bending_over_one_is_advisory_not_fail():
         height_total_ft=20,
         post_spacing_ft=5,
         exposure="C",
-        post_role="line_post",
+        post_role="line",
     )
     out = calculate(inp)
 
@@ -75,15 +75,44 @@ def test_line_post_bending_over_one_is_advisory_not_fail():
         out,
         {
             "post_spacing_ft": inp.post_spacing_ft,
-            "post_role": "line_post",
+            "post_role": "line",
         },
     )
 
     assert status != "RED"
     assert any(
-        "Advisory – Simplified Cantilever Check (Conservative)" in reason
+        "Advisory – Simplified cantilever bending check (conservative)" in reason
         for reason in details.get("reasons", [])
     )
+
+
+def test_terminal_post_bending_over_one_sets_fail():
+    """
+    For terminal posts, bending utilization > 1.0 should set status to RED.
+    """
+    from app.main import classify_risk
+
+    inp = EstimateInput(
+        wind_speed_mph=150,
+        height_total_ft=12,
+        post_spacing_ft=6,
+        exposure="C",
+        post_key="2_3_8_SS40",
+        post_role="terminal",
+    )
+    out = calculate(inp)
+
+    status, details = classify_risk(
+        out,
+        {
+            "post_spacing_ft": inp.post_spacing_ft,
+            "post_role": "terminal",
+            "post_key": inp.post_key,
+        },
+    )
+
+    assert status == "RED"
+    assert any("Bending check (terminal post)" in reason for reason in details.get("reasons", []))
 
 
 def test_manual_post_key_uses_catalog_footing():
