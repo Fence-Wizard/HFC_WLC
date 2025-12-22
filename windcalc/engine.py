@@ -42,6 +42,18 @@ _LEGACY_POST_SIZE_TO_KEY: Dict[str, str] = {
     '1 7/8" x 1 5/8" x .121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
     '2 1/4" x 1 5/8" x .121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
     '3 1/4" x 2 1/2" x .130" C-Shape': "C_3_1_4_X_2_1_2_X_130",
+    # Additional legacy display variants observed in templates/UI/docs
+    '1 7/8" x 1 5/8" x 0.105" C-Shape': "C_1_7_8_X_1_5_8_X_105",
+    '1 7/8" x 1 5/8" x 0.121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
+    '2 1/4" x 1 5/8" x 0.121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
+    '3 1/4" x 2 1/2" x 0.130" C-Shape': "C_3_1_4_X_2_1_2_X_130",
+    '1-7/8" Steel Pipe': "1_7_8_PIPE",
+    '2-3/8" Steel Pipe': "2_3_8_SS40",
+    '2-7/8" Steel Pipe': "2_7_8_SS40",
+    '3-1/2" Steel Pipe': "3_1_2_SS40",
+    '4.0" Steel Pipe': "4_0_PIPE",
+    '6-5/8" Steel Pipe': "6_5_8_PIPE",
+    '8-5/8" Steel Pipe': "8_5_8_PIPE",
 }
 
 _LABEL_TO_KEY: Dict[str, str] = {post.label: key for key, post in POST_TYPES.items()}
@@ -60,7 +72,10 @@ def _normalize_post_key(post_size: Optional[str]) -> Optional[str]:
     if post_size in POST_TYPES:
         return post_size
     # Check label-based mapping first, then legacy fallbacks
-    return _LABEL_TO_KEY.get(post_size) or _LEGACY_POST_SIZE_TO_KEY.get(post_size)
+    normalized = _LABEL_TO_KEY.get(post_size) or _LEGACY_POST_SIZE_TO_KEY.get(post_size)
+    if not normalized:
+        warnings.warn(f"Unknown post label '{post_size}', falling back to auto selection.")
+    return normalized
 
 
 def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> Recommendation:

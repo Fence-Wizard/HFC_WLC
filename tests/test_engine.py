@@ -226,6 +226,27 @@ def test_bending_output_single_location():
     assert "bending utilization" not in warnings_joined.lower()
 
 
+def test_unknown_legacy_label_falls_back_to_auto_with_warning():
+    """
+    Unknown legacy label should not crash; should warn and fall back to auto selection.
+    """
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        inp = EstimateInput(
+            wind_speed_mph=100,
+            height_total_ft=6,
+            post_spacing_ft=8,
+            exposure="C",
+            post_size="Unknown Legacy Label",
+        )
+        result = calculate(inp)
+
+        # Should have produced a warning about unknown label
+        assert any("Unknown post label" in str(warn.message) for warn in w)
+        # Should still return a recommendation (auto)
+        assert result.recommended.post_key is not None
+
+
 def test_legacy_api_still_available():
     fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test")
     wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)
