@@ -143,6 +143,28 @@ def test_swapping_post_key_changes_bending_and_spacing():
     )
 
 
+def test_auto_and_manual_same_post_have_same_footing():
+    """
+    Auto recommendation for a light load should pick 2_3_8_SS40; manual override of same key must match footing.
+    """
+    # Auto select with light load (below 500 -> 2_3_8_SS40)
+    auto_inp = EstimateInput(
+        wind_speed_mph=80,
+        height_total_ft=6,
+        post_spacing_ft=6,
+        exposure="C",
+    )
+    auto_out = calculate(auto_inp)
+
+    manual_inp = auto_inp.model_copy(update={"post_key": "2_3_8_SS40"})
+    manual_out = calculate(manual_inp)
+
+    assert auto_out.recommended.post_key == "2_3_8_SS40"
+    assert manual_out.recommended.post_key == "2_3_8_SS40"
+    assert auto_out.recommended.footing_diameter_in == manual_out.recommended.footing_diameter_in
+    assert auto_out.recommended.embedment_in == manual_out.recommended.embedment_in
+
+
 def test_legacy_api_still_available():
     fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test")
     wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)

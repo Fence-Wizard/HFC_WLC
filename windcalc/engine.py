@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import warnings
 from typing import Dict, Optional
 
 from windcalc.post_catalog import (
@@ -66,13 +68,26 @@ def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> 
     Build a Recommendation from a catalog key, pulling labels/footings from catalogs.
     """
     post = POST_TYPES.get(post_key)
+    strict_footing = os.getenv("WINDCALC_STRICT_FOOTING", "").lower() in {"1", "true", "yes"}
+
     if post is None:
         footing_dia, embedment = (12.0, 30.0)
         label = source_label or post_key
     else:
-        footing_dia = post.footing_diameter_in or 12.0
-        embedment = post.footing_embedment_in or 30.0
         label = source_label or post.label
+        if post.footing_diameter_in is None or post.footing_embedment_in is None:
+            msg = (
+                f"Footing data missing for post_key={post_key}; "
+                "using conservative default footing 12 in dia x 30 in embedment."
+            )
+            if strict_footing:
+                raise ValueError(msg)
+            warnings.warn(msg)
+            footing_dia = post.footing_diameter_in or 12.0
+            embedment = post.footing_embedment_in or 30.0
+        else:
+            footing_dia = post.footing_diameter_in
+            embedment = post.footing_embedment_in
     return Recommendation(
         post_key=post_key,
         post_label=label,
