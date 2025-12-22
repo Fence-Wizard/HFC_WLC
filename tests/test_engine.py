@@ -104,6 +104,45 @@ def test_manual_post_key_uses_catalog_footing():
     assert result.recommended.embedment_in == post.footing_embedment_in
 
 
+def test_post_key_override_wins_over_post_size():
+    inp = EstimateInput(
+        wind_speed_mph=120,
+        height_total_ft=8,
+        post_spacing_ft=8,
+        exposure="C",
+        post_key="2_3_8_SS40",
+        post_size='3-1/2" SS40',  # legacy label; should be ignored when post_key is present
+    )
+    result = calculate(inp)
+
+    assert result.recommended.post_key == "2_3_8_SS40"
+    assert result.recommended.post_label.startswith("2-3/8")
+
+
+def test_swapping_post_key_changes_bending_and_spacing():
+    small = EstimateInput(
+        wind_speed_mph=120,
+        height_total_ft=8,
+        post_spacing_ft=8,
+        exposure="C",
+        post_key="2_3_8_SS40",
+    )
+    large = small.model_copy(update={"post_key": "3_1_2_SS40"})
+
+    small_out = calculate(small)
+    large_out = calculate(large)
+
+    assert small_out.recommended.post_key == "2_3_8_SS40"
+    assert large_out.recommended.post_key == "3_1_2_SS40"
+
+    # Expect different bending capacity or spacing limits when swapping post
+    assert small_out.M_allow_ft_lb != large_out.M_allow_ft_lb or (
+        small_out.max_spacing_ft is not None
+        and large_out.max_spacing_ft is not None
+        and small_out.max_spacing_ft != large_out.max_spacing_ft
+    )
+
+
 def test_legacy_api_still_available():
     fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test")
     wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)

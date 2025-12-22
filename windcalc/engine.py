@@ -82,6 +82,13 @@ def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> 
     )
 
 
+def _build_recommendation_for_post_key(post_key: str, source: str | None = None) -> Recommendation:
+    """Explicit recommendation helper when caller provides a post_key override."""
+    post = POST_TYPES.get(post_key)
+    label = post.label if post else post_key
+    return _build_recommendation(post_key=post_key, source_label=label)
+
+
 def _recommend_auto_by_load(load_per_post: float) -> Recommendation:
     """Auto-select a post based on load thresholds, returning a post_key-backed recommendation."""
     for limit, key in _RECOMMENDATION_THRESHOLDS:
@@ -223,6 +230,10 @@ def _recommend_member_with_override(
         * use its footing from the catalog,
         * and let spacing checks / warnings handle overloads.
     """
+    # Explicit post_key wins, regardless of post_size_override
+    if post_key and post_key in POST_TYPES:
+        return _build_recommendation_for_post_key(post_key, source="manual")
+
     if not post_size_override or post_size_override.lower() in {"auto", "recommended", ""}:
         # Behavior exactly as before but now returns a post_key-driven recommendation
         return _recommend_auto_by_load(load_per_post)
