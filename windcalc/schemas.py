@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -88,6 +88,26 @@ class EstimateInput(BaseModel):
         description="Legacy post size override string (e.g., '2-3/8\" SS40'); prefer post_key",
     )
 
+
+class SharedResult(BaseModel):
+    pressure_psf: float
+    area_per_bay_ft2: float
+    total_load_lb: float
+    load_per_post_lb: float
+
+
+class BlockResult(BaseModel):
+    post_key: Optional[str] = None
+    post_label: Optional[str] = None
+    recommended: Recommendation
+    warnings: List[str] = Field(default_factory=list)
+    assumptions: List[str] = Field(default_factory=list)
+    max_spacing_ft: Optional[float] = None
+    M_demand_ft_lb: Optional[float] = None
+    M_allow_ft_lb: Optional[float] = None
+    moment_ok: Optional[bool] = None
+    status: str = "GREEN"
+
     @computed_field
     @property
     def area_per_bay_ft2(self) -> float:
@@ -99,16 +119,22 @@ class EstimateInput(BaseModel):
 class EstimateOutput(BaseModel):
     """Wind load estimate for a single bay."""
 
-    pressure_psf: float = Field(..., description="Applied pressure in psf")
-    area_per_bay_ft2: float = Field(..., description="Area of a single bay in square feet")
-    total_load_lb: float = Field(..., description="Total load on a bay in pounds")
-    load_per_post_lb: float = Field(..., description="Load per post in pounds")
+    # Combined response
+    shared: SharedResult
+    line: BlockResult
+    terminal: BlockResult
+    overall_status: str = "GREEN"
+    # Legacy top-level fields (mapped to line block for compatibility)
+    pressure_psf: float = Field(..., description="Applied pressure in psf (legacy; line block)")
+    area_per_bay_ft2: float = Field(..., description="Area of a single bay in square feet (legacy; line block)")
+    total_load_lb: float = Field(..., description="Total load on a bay in pounds (legacy; line block)")
+    load_per_post_lb: float = Field(..., description="Load per post in pounds (legacy; line block)")
     recommended: Recommendation
     warnings: List[str] = Field(default_factory=list)
     assumptions: List[str] = Field(default_factory=list)
-    max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (if fixed)")
-    M_demand_ft_lb: Optional[float] = Field(None, description="Bending moment demand in ft·lb (if post specified)")
-    M_allow_ft_lb: Optional[float] = Field(None, description="Allowable bending moment in ft·lb (if post specified)")
+    max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (legacy; line block)")
+    M_demand_ft_lb: Optional[float] = Field(None, description="Bending moment demand in ft·lb (legacy; line block)")
+    M_allow_ft_lb: Optional[float] = Field(None, description="Allowable bending moment in ft·lb (legacy; line block)")
 
 
 __all__ = [
