@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from windcalc import EstimateInput, EstimateOutput, calculate
+from windcalc.post_catalog import POST_TYPES
 from windcalc.report import draw_pdf
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -23,6 +24,12 @@ REPORT_DIR.mkdir(exist_ok=True)
 app = FastAPI(title="HFC Windload Calculator")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+POST_OPTIONS = sorted(
+    [{"key": key, "label": post.label} for key, post in POST_TYPES.items()],
+    key=lambda item: item["label"],
+)
+POST_LABELS = {key: post.label for key, post in POST_TYPES.items()}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -93,6 +100,7 @@ async def review(
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
     job_name: str = Form(""),
+    post_key: str = Form(""),
     post_size: str = Form(""),
 ):
     data = {
@@ -104,6 +112,7 @@ async def review(
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
         "job_name": job_name,
+        "post_key": post_key or "",
         "post_size": post_size or "",
     }
 
@@ -113,6 +122,7 @@ async def review(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        post_key=post_key or None,
         post_size=post_size or None,
     )
     out = calculate(inp)
@@ -121,7 +131,14 @@ async def review(
     return templates.TemplateResponse(
         request,
         "review.html",
-        {"data": data, "result": out, "risk": risk, "risk_details": risk_details},
+        {
+            "data": data,
+            "result": out,
+            "risk": risk,
+            "risk_details": risk_details,
+            "post_options": POST_OPTIONS,
+            "post_labels": POST_LABELS,
+        },
     )
 
 
@@ -135,6 +152,7 @@ async def download(
     post_spacing_ft: float,
     soil_type: str = "default",
     job_name: str = "Job",
+    post_key: str = "",
     post_size: str = "",
 ):
     inp = EstimateInput(
@@ -143,6 +161,7 @@ async def download(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        post_key=post_key or None,
         post_size=post_size or None,
     )
     out = calculate(inp)
@@ -155,6 +174,7 @@ async def download(
     # Calculate risk for PDF
     risk, risk_details = classify_risk(out, {
         "post_spacing_ft": post_spacing_ft,
+        "post_key": post_key or "",
         "post_size": post_size or "",
     })
     

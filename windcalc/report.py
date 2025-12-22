@@ -91,7 +91,7 @@ def _result_section(result: EstimateOutput, styles: dict[str, ParagraphStyle]):
         ["Load per post", f"{result.load_per_post_lb:.0f} lb"],
         [
             "Recommendation",
-            f"{result.recommended.post_size or 'N/A'} footing {result.recommended.footing_diameter_in or 'N/A'}"  # type: ignore[str-format]
+            f"{result.recommended.post_label or result.recommended.post_key or result.recommended.post_size or 'N/A'} footing {result.recommended.footing_diameter_in or 'N/A'}"  # type: ignore[str-format]
             f" in dia x {result.recommended.embedment_in or 'N/A'} in",
         ],
     ]
