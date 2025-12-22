@@ -157,7 +157,7 @@ async def download(
     job_name: str = "Job",
     post_role: str = "line_post",
     post_key: str = "",
-    post_size: str = "",
+    post_size: str = "",  # legacy; ignored for selection
 ):
     inp = EstimateInput(
         wind_speed_mph=wind_speed_mph,

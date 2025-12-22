@@ -145,7 +145,7 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     total_load_lb = round(pressure_psf * area, 2)
     load_per_post_lb = round(total_load_lb / 2, 2)
 
-    # Honour post override when selecting member, preferring post_key
+    # Resolve post override: prefer explicit post_key, normalize legacy post_size as fallback
     post_key_override = getattr(data, "post_key", None)
     post_size_override = getattr(data, "post_size", None)
     normalized_post_key = post_key_override or _normalize_post_key(post_size_override)
