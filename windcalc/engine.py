@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+import os
+import warnings
+from typing import Dict, Optional
 
 from windcalc.post_catalog import (
     POST_TYPES,
@@ -40,14 +42,21 @@ _LEGACY_POST_SIZE_TO_KEY: Dict[str, str] = {
     '1 7/8" x 1 5/8" x .121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
     '2 1/4" x 1 5/8" x .121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
     '3 1/4" x 2 1/2" x .130" C-Shape': "C_3_1_4_X_2_1_2_X_130",
+    # Additional legacy display variants observed in templates/UI/docs
+    '1 7/8" x 1 5/8" x 0.105" C-Shape': "C_1_7_8_X_1_5_8_X_105",
+    '1 7/8" x 1 5/8" x 0.121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
+    '2 1/4" x 1 5/8" x 0.121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
+    '3 1/4" x 2 1/2" x 0.130" C-Shape': "C_3_1_4_X_2_1_2_X_130",
+    '1-7/8" Steel Pipe': "1_7_8_PIPE",
+    '2-3/8" Steel Pipe': "2_3_8_SS40",
+    '2-7/8" Steel Pipe': "2_7_8_SS40",
+    '3-1/2" Steel Pipe': "3_1_2_SS40",
+    '4.0" Steel Pipe': "4_0_PIPE",
+    '6-5/8" Steel Pipe': "6_5_8_PIPE",
+    '8-5/8" Steel Pipe': "8_5_8_PIPE",
 }
 
 _LABEL_TO_KEY: Dict[str, str] = {post.label: key for key, post in POST_TYPES.items()}
-_POST_FOOTINGS: Dict[str, Tuple[float, float]] = {
-    "2_3_8_SS40": (10.0, 24.0),
-    "2_7_8_SS40": (12.0, 30.0),
-    "3_1_2_SS40": (16.0, 36.0),
-}
 _RECOMMENDATION_THRESHOLDS: tuple[tuple[float, str], ...] = (
     (500, "2_3_8_SS40"),
     (1000, "2_7_8_SS40"),
@@ -63,7 +72,10 @@ def _normalize_post_key(post_size: Optional[str]) -> Optional[str]:
     if post_size in POST_TYPES:
         return post_size
     # Check label-based mapping first, then legacy fallbacks
-    return _LABEL_TO_KEY.get(post_size) or _LEGACY_POST_SIZE_TO_KEY.get(post_size)
+    normalized = _LABEL_TO_KEY.get(post_size) or _LEGACY_POST_SIZE_TO_KEY.get(post_size)
+    if not normalized:
+        warnings.warn(f"Unknown post label '{post_size}', falling back to auto selection.")
+    return normalized
 
 
 def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> Recommendation:
@@ -71,8 +83,26 @@ def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> 
     Build a Recommendation from a catalog key, pulling labels/footings from catalogs.
     """
     post = POST_TYPES.get(post_key)
-    footing_dia, embedment = _POST_FOOTINGS.get(post_key, (12.0, 30.0))
-    label = source_label or (post.label if post else post_key)
+    strict_footing = os.getenv("WINDCALC_STRICT_FOOTING", "").lower() in {"1", "true", "yes"}
+
+    if post is None:
+        footing_dia, embedment = (12.0, 30.0)
+        label = source_label or post_key
+    else:
+        label = source_label or post.label
+        if post.footing_diameter_in is None or post.footing_embedment_in is None:
+            msg = (
+                f"Footing data missing for post_key={post_key}; "
+                "using conservative default footing 12 in dia x 30 in embedment."
+            )
+            if strict_footing:
+                raise ValueError(msg)
+            warnings.warn(msg)
+            footing_dia = post.footing_diameter_in or 12.0
+            embedment = post.footing_embedment_in or 30.0
+        else:
+            footing_dia = post.footing_diameter_in
+            embedment = post.footing_embedment_in
     return Recommendation(
         post_key=post_key,
         post_label=label,
@@ -80,6 +110,13 @@ def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> 
         footing_diameter_in=footing_dia,
         embedment_in=embedment,
     )
+
+
+def _build_recommendation_for_post_key(post_key: str, source: str | None = None) -> Recommendation:
+    """Explicit recommendation helper when caller provides a post_key override."""
+    post = POST_TYPES.get(post_key)
+    label = post.label if post else post_key
+    return _build_recommendation(post_key=post_key, source_label=label)
 
 
 def _recommend_auto_by_load(load_per_post: float) -> Recommendation:
@@ -138,7 +175,7 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     total_load_lb = round(pressure_psf * area, 2)
     load_per_post_lb = round(total_load_lb / 2, 2)
 
-    # Honour post override when selecting member, preferring post_key
+    # Resolve post override: prefer explicit post_key, normalize legacy post_size as fallback
     post_key_override = getattr(data, "post_key", None)
     post_size_override = getattr(data, "post_size", None)
     normalized_post_key = post_key_override or _normalize_post_key(post_size_override)
@@ -193,15 +230,6 @@ def calculate(data: EstimateInput) -> EstimateOutput:
             load_per_post_lb=load_per_post_lb,
         )
 
-        if not moment_ok:
-            post = POST_TYPES[effective_post_key]
-            warnings.append(
-                "Simplified bending check indicates the post is above its bending capacity: "
-                f"{M_demand_lb_in/12:.1f} ft·lb demand vs "
-                f"{M_allow_lb_in/12:.1f} ft·lb simplified capacity for post {post.label} "
-                f"({post.fy_ksi:.0f} ksi steel). Consider increasing post size or seeking PE review."
-            )
-
     assumptions = _assumptions(data)
 
     return EstimateOutput(
@@ -232,6 +260,10 @@ def _recommend_member_with_override(
         * use its footing from the catalog,
         * and let spacing checks / warnings handle overloads.
     """
+    # Explicit post_key wins, regardless of post_size_override
+    if post_key and post_key in POST_TYPES:
+        return _build_recommendation_for_post_key(post_key, source="manual")
+
     if not post_size_override or post_size_override.lower() in {"auto", "recommended", ""}:
         # Behavior exactly as before but now returns a post_key-driven recommendation
         return _recommend_auto_by_load(load_per_post)

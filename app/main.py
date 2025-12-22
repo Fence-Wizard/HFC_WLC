@@ -100,6 +100,7 @@ async def review(
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
     job_name: str = Form(""),
+    post_role: str = Form("line"),
     post_key: str = Form(""),
     post_size: str = Form(""),
 ):
@@ -112,6 +113,7 @@ async def review(
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
         "job_name": job_name,
+        "post_role": post_role or "line",
         "post_key": post_key or "",
         "post_size": post_size or "",
     }
@@ -122,6 +124,7 @@ async def review(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        post_role=post_role or "line",
         post_key=post_key or None,
         post_size=post_size or None,
     )
@@ -152,8 +155,9 @@ async def download(
     post_spacing_ft: float,
     soil_type: str = "default",
     job_name: str = "Job",
+    post_role: str = "line",
     post_key: str = "",
-    post_size: str = "",
+    post_size: str = "",  # legacy; ignored for selection
 ):
     inp = EstimateInput(
         wind_speed_mph=wind_speed_mph,
@@ -161,6 +165,7 @@ async def download(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        post_role=post_role or "line",
         post_key=post_key or None,
         post_size=post_size or None,
     )
@@ -174,6 +179,7 @@ async def download(
     # Calculate risk for PDF
     risk, risk_details = classify_risk(out, {
         "post_spacing_ft": post_spacing_ft,
+        "post_role": post_role or "line_post",
         "post_key": post_key or "",
         "post_size": post_size or "",
     })
@@ -208,6 +214,7 @@ def classify_risk(
         "moment_ratio": None,  # kept for display as "bending capacity"
         "reasons": [],
     }
+    post_role = (data.get("post_role") or "line").lower()
 
     # --- Spacing ratio (governing) ---
     spacing_ratio = None
@@ -260,12 +267,22 @@ def classify_risk(
     if moment_ratio is not None:
         m_demand = details.get("M_demand_ft_lb", 0)
         m_allow = details.get("M_allow_ft_lb", 0)
-        details["reasons"].append(
-            "Bending capacity check (advisory): "
-            f"{moment_ratio*100:.0f}% utilization "
-            f"({m_demand:.1f} ft·lb demand vs {m_allow:.1f} ft·lb simplified capacity; "
-            "spacing tables remain the governing limit)."
+        advisory_label = "Advisory – Simplified cantilever bending check (conservative): "
+        msg_body = (
+            f"{moment_ratio*100:.0f}% "
+            f"({m_demand:.1f} ft·lb demand / {m_allow:.1f} ft·lb capacity)"
         )
+        if post_role == "terminal":
+            msg = f"Bending check (terminal post): {msg_body}"
+            if moment_ratio > 1.0:
+                status = "RED"
+                msg += " — exceeds capacity"
+            details["reasons"].append(msg)
+        else:
+            msg = f"{advisory_label}{msg_body}"
+            if moment_ratio > 1.0:
+                msg += " — exceeds capacity (advisory only)"
+            details["reasons"].append(msg)
 
     # --- If we have no ratios at all, fall back to warnings only ---
     if spacing_ratio is None and moment_ratio is None:

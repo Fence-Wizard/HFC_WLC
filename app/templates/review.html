@@ -61,6 +61,15 @@
   <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />
   <input type="hidden" name="soil_type" value="{{ data.soil_type }}" />
   <input type="hidden" name="job_name" value="{{ data.job_name }}" />
+  <!-- Post role selection -->
+  <label for="post_role">Post role:</label>
+  <select id="post_role" name="post_role">
+    {% set current_role = (data.post_role or 'line') | lower %}
+    <option value="line" {% if current_role == 'line' %}selected{% endif %}>Line post</option>
+    <option value="terminal" {% if current_role == 'terminal' %}selected{% endif %}>Terminal post</option>
+  </select>
+  <!-- Legacy post_size preserved for backward compatibility but not used for selection -->
+  <input type="hidden" name="post_size" value="{{ data.post_size }}" />
 
   <label for="post_spacing_ft">Post spacing (ft):</label>
   <input
@@ -129,13 +138,6 @@
   </p>
   {% endif %}
   
-  {% if risk_details.moment_ratio is not none and risk_details.M_demand_ft_lb is not none and risk_details.M_allow_ft_lb is not none %}
-  <p>
-    <strong>Bending capacity utilization:</strong> {{ "%.1f"|format(risk_details.moment_ratio * 100) }}%
-    ({{ "%.1f"|format(risk_details.M_demand_ft_lb) }} ft·lb demand /
-     {{ "%.1f"|format(risk_details.M_allow_ft_lb) }} ft·lb simplified capacity)
-  </p>
-  {% endif %}
 </div>
 {% endif %}
 
@@ -159,7 +161,7 @@
 
 <h3>PDF</h3>
 <a
-  href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}{% if data.post_key %}&post_key={{ data.post_key }}{% endif %}"
+  href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}&post_role={{ data.post_role }}{% if data.post_key %}&post_key={{ data.post_key }}{% endif %}"
   >Download PDF report</a
 >
 

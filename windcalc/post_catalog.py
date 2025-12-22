@@ -24,6 +24,8 @@ class PostType:
     fy_ksi: float = 50.0  # yield strength (30 or 50 typically)
     section_modulus_in3: Optional[float] = None  # precomputed for C-shapes
     table_label: Optional[str] = None  # exact label used in the CSV tables
+    footing_diameter_in: Optional[float] = None  # default footing diameter
+    footing_embedment_in: Optional[float] = None  # default embedment depth
 
 
 POST_TYPES: dict[str, PostType] = {
@@ -38,6 +40,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=8.0,
         fy_ksi=50.0,
         table_label='2 3/8"',  # matches WLC Tables CSV row
+        footing_diameter_in=10.0,
+        footing_embedment_in=24.0,
     ),
     "2_7_8_SS40": PostType(
         key="2_7_8_SS40",
@@ -49,6 +53,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=10.0,
         fy_ksi=50.0,
         table_label='2 7/8"',
+        footing_diameter_in=12.0,
+        footing_embedment_in=30.0,
     ),
     "3_1_2_SS40": PostType(
         key="3_1_2_SS40",
@@ -60,6 +66,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=10.0,
         fy_ksi=50.0,
         table_label='3 1/2"',
+        footing_diameter_in=16.0,
+        footing_embedment_in=36.0,
     ),
     # --- Additional steel pipe sizes (same group / style) ---
     "1_7_8_PIPE": PostType(
@@ -72,6 +80,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=8.0,
         fy_ksi=50.0,
         table_label='1 7/8"',
+        footing_diameter_in=10.0,
+        footing_embedment_in=24.0,
     ),
     "4_0_PIPE": PostType(
         key="4_0_PIPE",
@@ -83,6 +93,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=10.0,
         fy_ksi=50.0,
         table_label='4"',
+        footing_diameter_in=18.0,
+        footing_embedment_in=42.0,
     ),
     "6_5_8_PIPE": PostType(
         key="6_5_8_PIPE",
@@ -94,6 +106,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=10.0,
         fy_ksi=50.0,
         table_label='6 5/8"',
+        footing_diameter_in=24.0,
+        footing_embedment_in=48.0,
     ),
     "8_5_8_PIPE": PostType(
         key="8_5_8_PIPE",
@@ -105,6 +119,8 @@ POST_TYPES: dict[str, PostType] = {
         spacing_base_ft=10.0,
         fy_ksi=50.0,
         table_label='8 5/8"',
+        footing_diameter_in=30.0,
+        footing_embedment_in=54.0,
     ),
     # --- C-shapes (Group II: high strength cold-rolled C-shape, 50 ksi) ---
     "C_1_7_8_X_1_5_8_X_105": PostType(
@@ -116,6 +132,8 @@ POST_TYPES: dict[str, PostType] = {
         fy_ksi=50.0,
         section_modulus_in3=None,  # TODO: plug in Sx from manufacturer if you want moment checks
         table_label='1 7/8" x 1 5/8" x .105',
+        footing_diameter_in=10.0,
+        footing_embedment_in=24.0,
     ),
     "C_1_7_8_X_1_5_8_X_121": PostType(
         key="C_1_7_8_X_1_5_8_X_121",
@@ -126,6 +144,8 @@ POST_TYPES: dict[str, PostType] = {
         fy_ksi=50.0,
         section_modulus_in3=None,  # TODO: add Sx
         table_label='1 7/8" x 1 5/8" x .121',
+        footing_diameter_in=10.0,
+        footing_embedment_in=24.0,
     ),
     "C_2_1_4_X_1_5_8_X_121": PostType(
         key="C_2_1_4_X_1_5_8_X_121",
@@ -136,6 +156,8 @@ POST_TYPES: dict[str, PostType] = {
         fy_ksi=50.0,
         section_modulus_in3=None,
         table_label='2 1/4" x 1 5/8" x .121',
+        footing_diameter_in=12.0,
+        footing_embedment_in=30.0,
     ),
     "C_3_1_4_X_2_1_2_X_130": PostType(
         key="C_3_1_4_X_2_1_2_X_130",
@@ -146,6 +168,8 @@ POST_TYPES: dict[str, PostType] = {
         fy_ksi=50.0,
         section_modulus_in3=None,
         table_label='3 1/4" x 2 1/2" x .130',
+        footing_diameter_in=14.0,
+        footing_embedment_in=36.0,
     ),
 }
 
