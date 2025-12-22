@@ -100,9 +100,11 @@ async def review(
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
     job_name: str = Form(""),
-    post_role: str = Form("line"),
-    post_key: str = Form(""),
-    post_size: str = Form(""),
+    line_post_key: str = Form(""),
+    terminal_post_key: str = Form(""),
+    post_role: str = Form("line"),  # deprecated
+    post_key: str = Form(""),  # deprecated
+    post_size: str = Form(""),  # legacy
 ):
     data = {
         "zip_code": zip_code,
@@ -113,6 +115,8 @@ async def review(
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
         "job_name": job_name,
+        "line_post_key": line_post_key or "",
+        "terminal_post_key": terminal_post_key or "",
         "post_role": post_role or "line",
         "post_key": post_key or "",
         "post_size": post_size or "",
@@ -124,6 +128,8 @@ async def review(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        line_post_key=line_post_key or None,
+        terminal_post_key=terminal_post_key or None,
         post_role=post_role or "line",
         post_key=post_key or None,
         post_size=post_size or None,
@@ -155,8 +161,10 @@ async def download(
     post_spacing_ft: float,
     soil_type: str = "default",
     job_name: str = "Job",
-    post_role: str = "line",
-    post_key: str = "",
+    line_post_key: str = "",
+    terminal_post_key: str = "",
+    post_role: str = "line",  # deprecated
+    post_key: str = "",  # deprecated
     post_size: str = "",  # legacy; ignored for selection
 ):
     inp = EstimateInput(
@@ -165,6 +173,8 @@ async def download(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
+        line_post_key=line_post_key or None,
+        terminal_post_key=terminal_post_key or None,
         post_role=post_role or "line",
         post_key=post_key or None,
         post_size=post_size or None,
@@ -179,7 +189,9 @@ async def download(
     # Calculate risk for PDF
     risk, risk_details = classify_risk(out, {
         "post_spacing_ft": post_spacing_ft,
-        "post_role": post_role or "line_post",
+        "line_post_key": line_post_key or "",
+        "terminal_post_key": terminal_post_key or "",
+        "post_role": post_role or "line",
         "post_key": post_key or "",
         "post_size": post_size or "",
     })
