@@ -225,6 +225,7 @@ def classify_risk(
         "spacing_ratio": None,
         "moment_ratio": None,  # kept for display as "bending capacity"
         "reasons": [],
+        "advanced_reasons": [],
     }
     post_role = (data.get("post_role") or "line").lower()
 
@@ -294,7 +295,7 @@ def classify_risk(
             msg = f"{advisory_label}{msg_body}"
             if moment_ratio > 1.0:
                 msg += " — exceeds capacity (advisory only)"
-            details["reasons"].append(msg)
+            details["advanced_reasons"].append(msg)
 
     # --- If we have no ratios at all, fall back to warnings only ---
     if spacing_ratio is None and moment_ratio is None:

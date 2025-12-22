@@ -82,7 +82,7 @@ def test_line_post_bending_over_one_is_advisory_not_fail():
     assert status != "RED"
     assert any(
         "Advisory – Simplified cantilever bending check (conservative)" in reason
-        for reason in details.get("reasons", [])
+        for reason in details.get("advanced_reasons", [])
     )
 
 
@@ -196,7 +196,7 @@ def test_auto_and_manual_same_post_have_same_footing():
 
 def test_bending_output_single_location():
     """
-    Bending utilization should appear only once in risk reasons, not in warnings.
+    Bending utilization should appear only once (advanced for line posts), not in warnings.
     """
     from app.main import classify_risk
 
@@ -206,7 +206,7 @@ def test_bending_output_single_location():
         post_spacing_ft=6,
         exposure="C",
         post_key="2_3_8_SS40",
-        post_role="line_post",
+        post_role="line",
     )
     out = calculate(inp)
 
@@ -221,8 +221,10 @@ def test_bending_output_single_location():
 
     reasons = " ".join(details.get("reasons", []))
     warnings_joined = " ".join(out.warnings)
+    adv = " ".join(details.get("advanced_reasons", []))
 
-    assert reasons.lower().count("bending utilization") == 1
+    assert reasons.lower().count("bending utilization") == 0
+    assert adv.lower().count("bending utilization") == 1
     assert "bending utilization" not in warnings_joined.lower()
 
 

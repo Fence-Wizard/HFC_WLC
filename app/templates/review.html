@@ -146,7 +146,17 @@
     ({{ "%.2f"|format(data.post_spacing_ft) }} ft / {{ "%.2f"|format(risk_details.max_spacing_ft) }} ft max)
   </p>
   {% endif %}
-  
+
+  {% if risk_details.advanced_reasons %}
+  <details>
+    <summary>Advanced details</summary>
+    <ul>
+      {% for reason in risk_details.advanced_reasons %}
+      <li>{{ reason }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
 </div>
 {% endif %}
 
