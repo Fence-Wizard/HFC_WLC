@@ -228,6 +228,9 @@ def _compute_block(
         status = "RED"
     if role == "terminal" and moment_ok is False:
         status = "RED"
+        warnings_list.append(
+            "Terminal bending exceeds capacity; increase post size or adjust configuration."
+        )
 
     return BlockResult(
         post_key=effective_key,
@@ -305,7 +308,7 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         total_load_lb=shared.total_load_lb,
         load_per_post_lb=shared.load_per_post_lb,
         recommended=line_block.recommended,
-        warnings=line_block.warnings,
+        warnings=(line_block.warnings or []) + (terminal_block.warnings or []),
         assumptions=line_block.assumptions,
         max_spacing_ft=line_block.max_spacing_ft,
         M_demand_ft_lb=line_block.M_demand_ft_lb,

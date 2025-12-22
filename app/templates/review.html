@@ -125,7 +125,7 @@
   <li>Max spacing: {{ "%.2f"|format(result.line.max_spacing_ft) }} ft</li>
   <li>Your spacing: {{ "%.2f"|format(data.post_spacing_ft) }} ft</li>
   {% endif %}
-  <li>Bending: Advisory available</li>
+  <li>Bending: Bending check (conservative) available in Advanced.</li>
 </ul>
 {% if result.line.max_spacing_ft %}
   {% set spacing_ratio = data.post_spacing_ft / result.line.max_spacing_ft %}
@@ -133,8 +133,8 @@
 {% endif %}
 {% if result.line.M_demand_ft_lb is not none and result.line.M_allow_ft_lb is not none %}
 <details>
-  <summary>Advanced (bending advisory)</summary>
-  <p>Bending utilization: {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
+  <summary>Advanced (line post)</summary>
+  <p>Advisory — Simplified cantilever bending check (conservative): {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
      ({{ "%.1f"|format(result.line.M_demand_ft_lb) }} / {{ "%.1f"|format(result.line.M_allow_ft_lb) }} ft·lb)</p>
 </details>
 {% endif %}
