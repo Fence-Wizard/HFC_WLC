@@ -79,8 +79,8 @@
 
   <label for="line_post_key">Line post type:</label>
   <select id="line_post_key" name="line_post_key">
-    {% set current_line_post = data.line_post_key or "" %}
-    <option value="" {% if not current_line_post %}selected{% endif %}>
+    {% set current_line_post = data.line_post_key or "auto" %}
+    <option value="auto" {% if current_line_post == "auto" %}selected{% endif %}>
       Auto (based on load)
     </option>
 
@@ -94,8 +94,8 @@
 
   <label for="terminal_post_key">Terminal post type:</label>
   <select id="terminal_post_key" name="terminal_post_key">
-    {% set current_terminal_post = data.terminal_post_key or "" %}
-    <option value="" {% if not current_terminal_post %}selected{% endif %}>
+    {% set current_terminal_post = data.terminal_post_key or "auto" %}
+    <option value="auto" {% if current_terminal_post == "auto" %}selected{% endif %}>
       Auto (based on load)
     </option>
 
@@ -110,78 +110,47 @@
   <button type="submit">Recalculate</button>
 </form>
 
-<h3>Structural Status</h3>
-
-<div class="status-banner status-{{ risk.lower() }}">
-  {% if risk == "GREEN" %}
-    <div class="status-header">
-      <strong>🟢 GREEN – Configuration is within recommended limits</strong>
-    </div>
-    <p>Meets preliminary structural criteria. PM can quote using this configuration.</p>
-  {% elif risk == "YELLOW" %}
-    <div class="status-header">
-      <strong>🟡 YELLOW – Configuration is close to a structural limit</strong>
-    </div>
-    <p>Adjust spacing or post size. For bid purposes, consider flagging for engineer review if client requires compliance with ASCE interpretations.</p>
-  {% else %}
-    <div class="status-header">
-      <strong>🔴 RED – Configuration exceeds structural limits</strong>
-    </div>
-    <p><strong>NOT acceptable</strong> — change post size, spacing, or seek engineering. This exceeds simplified design limits — revise configuration.</p>
-  {% endif %}
-</div>
-
-{% if risk_details and risk_details.reasons %}
-<div class="status-details">
-  <h4>Status Details:</h4>
-  <ul>
-    {% for reason in risk_details.reasons %}
-    <li>{{ reason }}</li>
-    {% endfor %}
-  </ul>
-  
-  {% if risk_details.spacing_ratio is not none and risk_details.max_spacing_ft is not none %}
-  <p>
-    <strong>Spacing ratio:</strong> {{ "%.1f"|format(risk_details.spacing_ratio * 100) }}% 
-    ({{ "%.2f"|format(data.post_spacing_ft) }} ft / {{ "%.2f"|format(risk_details.max_spacing_ft) }} ft max)
-  </p>
-  {% endif %}
-
-  {% if risk_details.advanced_reasons %}
-  <details>
-    <summary>Advanced details</summary>
-    <ul>
-      {% for reason in risk_details.advanced_reasons %}
-      <li>{{ reason }}</li>
-      {% endfor %}
-    </ul>
-  </details>
-  {% endif %}
-</div>
-{% endif %}
-
-{% if result.warnings %}
-<h3>Warnings</h3>
+<h3>Shared Results</h3>
 <ul>
-  {% for w in result.warnings %}
-  <li>{{ w }}</li>
-  {% endfor %}
+  <li>Pressure: {{ "%.2f"|format(result.shared.pressure_psf) }} psf</li>
+  <li>Area per bay: {{ "%.1f"|format(result.shared.area_per_bay_ft2) }} ft²</li>
+  <li>Total load per bay: {{ "%.0f"|format(result.shared.total_load_lb) }} lb</li>
+  <li>Load per post: {{ "%.0f"|format(result.shared.load_per_post_lb) }} lb</li>
 </ul>
-{% endif %}
 
-{% if result.assumptions %}
-<h3>Assumptions</h3>
+<h3>Line Results</h3>
 <ul>
-  {% for a in result.assumptions %}
-  <li>{{ a }}</li>
-  {% endfor %}
+  <li>Post: {{ result.line.post_label or result.line.post_key or 'Auto' }}</li>
+  {% if result.line.max_spacing_ft %}
+  <li>Max spacing: {{ "%.2f"|format(result.line.max_spacing_ft) }} ft</li>
+  <li>Your spacing: {{ "%.2f"|format(data.post_spacing_ft) }} ft</li>
+  {% endif %}
+  <li>Bending: Advisory available</li>
 </ul>
+{% if result.line.max_spacing_ft %}
+  {% set spacing_ratio = data.post_spacing_ft / result.line.max_spacing_ft %}
+  <p><strong>Line spacing ratio:</strong> {{ "%.1f"|format(spacing_ratio * 100) }}% ({{ "%.2f"|format(data.post_spacing_ft) }} / {{ "%.2f"|format(result.line.max_spacing_ft) }})</p>
+{% endif %}
+{% if result.line.M_demand_ft_lb is not none and result.line.M_allow_ft_lb is not none %}
+<details>
+  <summary>Advanced (bending advisory)</summary>
+  <p>Bending utilization: {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
+     ({{ "%.1f"|format(result.line.M_demand_ft_lb) }} / {{ "%.1f"|format(result.line.M_allow_ft_lb) }} ft·lb)</p>
+</details>
 {% endif %}
 
-<h3>PDF</h3>
-<a
-  href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&soil_type={{ data.soil_type }}&job_name={{ data.job_name }}&post_role={{ data.post_role }}{% if data.post_key %}&post_key={{ data.post_key }}{% endif %}"
-  >Download PDF report</a
->
+<h3>Terminal Results</h3>
+<ul>
+  <li>Post: {{ result.terminal.post_label or result.terminal.post_key or 'Auto' }}</li>
+  {% if result.terminal.recommended %}
+  <li>Footing: {{ result.terminal.recommended.footing_diameter_in or 'N/A' }} in dia × {{ result.terminal.recommended.embedment_in or 'N/A' }} in</li>
+  {% endif %}
+  {% if result.terminal.M_demand_ft_lb is not none and result.terminal.M_allow_ft_lb is not none %}
+  <li>Bending utilization: {{ "%.0f"|format(result.terminal.M_demand_ft_lb / result.terminal.M_allow_ft_lb * 100) }}%
+     ({{ "%.1f"|format(result.terminal.M_demand_ft_lb) }} / {{ "%.1f"|format(result.terminal.M_allow_ft_lb) }} ft·lb)</li>
+  {% endif %}
+</ul>
+
+<h3>Overall Status: {{ result.overall_status }}</h3>
 
 {% endblock %}

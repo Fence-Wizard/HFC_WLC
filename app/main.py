@@ -100,8 +100,8 @@ async def review(
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
     job_name: str = Form(""),
-    line_post_key: str = Form(""),
-    terminal_post_key: str = Form(""),
+    line_post_key: str = Form("auto"),
+    terminal_post_key: str = Form("auto"),
     post_role: str = Form("line"),  # deprecated
     post_key: str = Form(""),  # deprecated
     post_size: str = Form(""),  # legacy
@@ -115,8 +115,8 @@ async def review(
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
         "job_name": job_name,
-        "line_post_key": line_post_key or "",
-        "terminal_post_key": terminal_post_key or "",
+        "line_post_key": line_post_key or "auto",
+        "terminal_post_key": terminal_post_key or "auto",
         "post_role": post_role or "line",
         "post_key": post_key or "",
         "post_size": post_size or "",
@@ -128,8 +128,10 @@ async def review(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
-        line_post_key=line_post_key or None,
-        terminal_post_key=terminal_post_key or None,
+        line_post_key=None if not line_post_key or line_post_key == "auto" else line_post_key,
+        terminal_post_key=None
+        if not terminal_post_key or terminal_post_key == "auto"
+        else terminal_post_key,
         post_role=post_role or "line",
         post_key=post_key or None,
         post_size=post_size or None,
@@ -222,98 +224,60 @@ def classify_risk(
     NOT override the spacing-based status.
     """
     details: dict[str, Any] = {
-        "spacing_ratio": None,
-        "moment_ratio": None,  # kept for display as "bending capacity"
         "reasons": [],
         "advanced_reasons": [],
+        "line_spacing_ratio": None,
+        "line_max_spacing_ft": None,
+        "terminal_bending_ratio": None,
     }
-    post_role = (data.get("post_role") or "line").lower()
 
-    # --- Spacing ratio (governing) ---
-    spacing_ratio = None
-    if hasattr(out, "max_spacing_ft") and out.max_spacing_ft is not None and out.max_spacing_ft > 0:
-        post_spacing = data.get("post_spacing_ft", 0)
-        if post_spacing > 0:
-            spacing_ratio = post_spacing / out.max_spacing_ft
-            details["spacing_ratio"] = spacing_ratio
-            details["max_spacing_ft"] = out.max_spacing_ft
+    status = out.overall_status if hasattr(out, "overall_status") else "GREEN"
 
-    # --- Bending ratio (advisory only) ---
-    moment_ratio = None
-    if (
-        hasattr(out, "M_allow_ft_lb")
-        and out.M_allow_ft_lb is not None
-        and out.M_allow_ft_lb > 0
-        and hasattr(out, "M_demand_ft_lb")
-        and out.M_demand_ft_lb is not None
-    ):
-        moment_ratio = out.M_demand_ft_lb / out.M_allow_ft_lb
-        details["moment_ratio"] = moment_ratio
-        details["M_demand_ft_lb"] = out.M_demand_ft_lb
-        details["M_allow_ft_lb"] = out.M_allow_ft_lb
+    # Line spacing info
+    if hasattr(out, "line") and out.line.max_spacing_ft:
+        spacing_ratio = data.get("post_spacing_ft", 0) / out.line.max_spacing_ft
+        details["line_spacing_ratio"] = spacing_ratio
+        details["line_max_spacing_ft"] = out.line.max_spacing_ft
+        if spacing_ratio > 1.15:
+            details["reasons"].append(
+                f"Line spacing at {spacing_ratio*100:.0f}% of limit "
+                f"({data.get('post_spacing_ft', 0):.2f} ft vs {out.line.max_spacing_ft:.2f} ft max)"
+            )
+        elif spacing_ratio > 1.0:
+            details["reasons"].append(
+                f"Line spacing slightly above limit "
+                f"({data.get('post_spacing_ft', 0):.2f} ft vs {out.line.max_spacing_ft:.2f} ft max)"
+            )
 
-    # --- Base status from spacing only ---
-    status = "GREEN"
-
-    # RED if spacing is well beyond table limit
-    if spacing_ratio is not None and spacing_ratio > 1.15:
-        status = "RED"
-        max_spacing = details.get("max_spacing_ft", getattr(out, "max_spacing_ft", None) or 0)
-        details["reasons"].append(
-            f"Spacing at {spacing_ratio*100:.0f}% of limit "
-            f"({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
+    # Terminal bending info
+    if hasattr(out, "terminal") and out.terminal.M_allow_ft_lb:
+        ratio = (
+            out.terminal.M_demand_ft_lb / out.terminal.M_allow_ft_lb
+            if out.terminal.M_demand_ft_lb and out.terminal.M_allow_ft_lb
+            else None
         )
-
-    # YELLOW if spacing is slightly above limit, but not RED
-    elif spacing_ratio is not None and 1.0 < spacing_ratio <= 1.15:
-        status = "YELLOW"
-        max_spacing = details.get(
-            "max_spacing_ft",
-            out.max_spacing_ft if hasattr(out, "max_spacing_ft") else 0,
-        )
-        details["reasons"].append(
-            f"Spacing at {spacing_ratio*100:.0f}% of limit "
-            f"({data.get('post_spacing_ft', 0):.2f} ft vs {max_spacing:.2f} ft max)"
-        )
-
-    # --- Optional advisory note about bending capacity (does NOT change status) ---
-    if moment_ratio is not None:
-        m_demand = details.get("M_demand_ft_lb", 0)
-        m_allow = details.get("M_allow_ft_lb", 0)
-        advisory_label = "Advisory – Simplified cantilever bending check (conservative): "
-        msg_body = (
-            f"{moment_ratio*100:.0f}% "
-            f"({m_demand:.1f} ft·lb demand / {m_allow:.1f} ft·lb capacity)"
-        )
-        if post_role == "terminal":
-            msg = f"Bending check (terminal post): {msg_body}"
-            if moment_ratio > 1.0:
-                status = "RED"
-                msg += " — exceeds capacity"
+        details["terminal_bending_ratio"] = ratio
+        if ratio is not None:
+            msg = (
+                f"Terminal bending utilization: {ratio*100:.0f}% "
+                f"({out.terminal.M_demand_ft_lb:.1f} / {out.terminal.M_allow_ft_lb:.1f} ft·lb)"
+            )
             details["reasons"].append(msg)
-        else:
-            msg = f"{advisory_label}{msg_body}"
-            if moment_ratio > 1.0:
-                msg += " — exceeds capacity (advisory only)"
-            details["advanced_reasons"].append(msg)
 
-    # --- If we have no ratios at all, fall back to warnings only ---
-    if spacing_ratio is None and moment_ratio is None:
-        if out.warnings:
-            lowered = " ".join(w.lower() for w in out.warnings)
-            if "exceeds" in lowered or "outside" in lowered or "pe review" in lowered:
-                status = "RED"
-                details["reasons"].append("Configuration exceeds simplified design limits")
-            else:
-                status = "YELLOW"
-                details["reasons"].append("Review warnings carefully")
-        else:
-            status = "GREEN"
-            details["reasons"].append("Configuration is within recommended limits")
-    else:
-        # If we got here with spacing_ratio <= 1.0, call that out explicitly
-        if status == "GREEN":
-            details["reasons"].append("Configuration is within recommended table limits")
+    # Line bending advisory
+    if hasattr(out, "line") and out.line.M_allow_ft_lb:
+        ratio = (
+            out.line.M_demand_ft_lb / out.line.M_allow_ft_lb
+            if out.line.M_demand_ft_lb and out.line.M_allow_ft_lb
+            else None
+        )
+        if ratio is not None:
+            msg = (
+                "Advisory – Simplified cantilever bending check (conservative): "
+                f"{ratio*100:.0f}% "
+                f"({out.line.M_demand_ft_lb:.1f} / {out.line.M_allow_ft_lb:.1f} ft·lb)"
+            )
+            details["advanced_reasons"].append(msg)
 
     return status, details
 

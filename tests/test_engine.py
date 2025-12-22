@@ -154,21 +154,21 @@ def test_swapping_post_key_changes_bending_and_spacing():
         height_total_ft=8,
         post_spacing_ft=8,
         exposure="C",
-        post_key="2_3_8_SS40",
+        line_post_key="2_3_8_SS40",
     )
-    large = small.model_copy(update={"post_key": "3_1_2_SS40"})
+    large = small.model_copy(update={"line_post_key": "3_1_2_SS40"})
 
     small_out = calculate(small)
     large_out = calculate(large)
 
-    assert small_out.recommended.post_key == "2_3_8_SS40"
-    assert large_out.recommended.post_key == "3_1_2_SS40"
+    assert small_out.line.post_key == "2_3_8_SS40"
+    assert large_out.line.post_key == "3_1_2_SS40"
 
     # Expect different bending capacity or spacing limits when swapping post
-    assert small_out.M_allow_ft_lb != large_out.M_allow_ft_lb or (
-        small_out.max_spacing_ft is not None
-        and large_out.max_spacing_ft is not None
-        and small_out.max_spacing_ft != large_out.max_spacing_ft
+    assert small_out.line.M_allow_ft_lb != large_out.line.M_allow_ft_lb or (
+        small_out.line.max_spacing_ft is not None
+        and large_out.line.max_spacing_ft is not None
+        and small_out.line.max_spacing_ft != large_out.line.max_spacing_ft
     )
 
 
@@ -185,13 +185,13 @@ def test_auto_and_manual_same_post_have_same_footing():
     )
     auto_out = calculate(auto_inp)
 
-    manual_inp = auto_inp.model_copy(update={"post_key": "2_3_8_SS40"})
+    manual_inp = auto_inp.model_copy(update={"line_post_key": "2_3_8_SS40"})
     manual_out = calculate(manual_inp)
 
-    assert auto_out.recommended.post_key == "2_3_8_SS40"
-    assert manual_out.recommended.post_key == "2_3_8_SS40"
-    assert auto_out.recommended.footing_diameter_in == manual_out.recommended.footing_diameter_in
-    assert auto_out.recommended.embedment_in == manual_out.recommended.embedment_in
+    assert auto_out.line.post_key == "2_3_8_SS40"
+    assert manual_out.line.post_key == "2_3_8_SS40"
+    assert auto_out.line.recommended.footing_diameter_in == manual_out.line.recommended.footing_diameter_in
+    assert auto_out.line.recommended.embedment_in == manual_out.line.recommended.embedment_in
 
 
 def test_bending_output_single_location():
@@ -205,7 +205,7 @@ def test_bending_output_single_location():
         height_total_ft=12,
         post_spacing_ft=6,
         exposure="C",
-        post_key="2_3_8_SS40",
+        line_post_key="2_3_8_SS40",
         post_role="line",
     )
     out = calculate(inp)
@@ -215,7 +215,6 @@ def test_bending_output_single_location():
         {
             "post_spacing_ft": inp.post_spacing_ft,
             "post_role": inp.post_role,
-            "post_key": inp.post_key,
         },
     )
 
