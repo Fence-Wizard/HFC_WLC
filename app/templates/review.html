@@ -132,13 +132,6 @@
   </p>
   {% endif %}
   
-  {% if risk_details.moment_ratio is not none and risk_details.M_demand_ft_lb is not none and risk_details.M_allow_ft_lb is not none %}
-  <p>
-    <strong>Bending capacity utilization:</strong> {{ "%.1f"|format(risk_details.moment_ratio * 100) }}%
-    ({{ "%.1f"|format(risk_details.M_demand_ft_lb) }} ft·lb demand /
-     {{ "%.1f"|format(risk_details.M_allow_ft_lb) }} ft·lb simplified capacity)
-  </p>
-  {% endif %}
 </div>
 {% endif %}
 

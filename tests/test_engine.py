@@ -165,6 +165,38 @@ def test_auto_and_manual_same_post_have_same_footing():
     assert auto_out.recommended.embedment_in == manual_out.recommended.embedment_in
 
 
+def test_bending_output_single_location():
+    """
+    Bending utilization should appear only once in risk reasons, not in warnings.
+    """
+    from app.main import classify_risk
+
+    inp = EstimateInput(
+        wind_speed_mph=150,
+        height_total_ft=12,
+        post_spacing_ft=6,
+        exposure="C",
+        post_key="2_3_8_SS40",
+        post_role="line_post",
+    )
+    out = calculate(inp)
+
+    status, details = classify_risk(
+        out,
+        {
+            "post_spacing_ft": inp.post_spacing_ft,
+            "post_role": inp.post_role,
+            "post_key": inp.post_key,
+        },
+    )
+
+    reasons = " ".join(details.get("reasons", []))
+    warnings_joined = " ".join(out.warnings)
+
+    assert reasons.lower().count("bending utilization") == 1
+    assert "bending utilization" not in warnings_joined.lower()
+
+
 def test_legacy_api_still_available():
     fence = FenceSpecs(height=6.0, width=100.0, material="wood", location="Test")
     wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)
