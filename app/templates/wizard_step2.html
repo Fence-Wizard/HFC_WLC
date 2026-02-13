@@ -1,28 +1,120 @@
 {% extends "base.html" %}
+
+{% block title %}Step 2 - Geometry | HFC Windload Calculator{% endblock %}
+
+{% block progress %}
+<div class="progress-bar">
+  <div class="progress-bar-inner">
+    <div class="progress-step completed">
+      <span class="progress-dot">&#10003;</span>
+      <span>Wind</span>
+    </div>
+    <div class="progress-connector completed"></div>
+    <div class="progress-step active">
+      <span class="progress-dot">2</span>
+      <span>Geometry</span>
+    </div>
+    <div class="progress-connector"></div>
+    <div class="progress-step">
+      <span class="progress-dot">3</span>
+      <span>Job Info</span>
+    </div>
+    <div class="progress-connector"></div>
+    <div class="progress-step">
+      <span class="progress-dot">4</span>
+      <span>Results</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
-<h2>Step 2 – Fence geometry</h2>
 <form method="post" action="/step3">
+  <!-- Carry forward step 1 data -->
   <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
   <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
   <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
   <input type="hidden" name="exposure" value="{{ data.exposure }}" />
 
-  <label>Fence height (ft):</label>
-  <input
-    type="number"
-    name="height_total_ft"
-    step="0.1"
-    value="{{ data.height_total_ft or 8 }}"
-    required
-  />
-  <label>Post spacing (ft):</label>
-  <input
-    type="number"
-    name="post_spacing_ft"
-    step="0.1"
-    value="{{ data.post_spacing_ft or 10 }}"
-    required
-  />
-  <button type="submit">Next</button>
+  <div class="card">
+    <div class="card-header">
+      <h2>Step 2 - Fence Geometry</h2>
+      <p>Define the fence height and post spacing for this section.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="height_total_ft">Total Fence Height (ft)</label>
+      <input
+        type="number"
+        id="height_total_ft"
+        name="height_total_ft"
+        step="0.5"
+        min="3"
+        max="50"
+        value="{{ data.height_total_ft or '' }}"
+        placeholder="e.g. 8"
+        required
+      />
+      <span class="form-hint">
+        Top of fabric to ground line, in feet.
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label for="post_spacing_ft">Post Spacing (ft)</label>
+      <input
+        type="number"
+        id="post_spacing_ft"
+        name="post_spacing_ft"
+        step="0.5"
+        min="1"
+        max="30"
+        value="{{ data.post_spacing_ft or '' }}"
+        placeholder="e.g. 10"
+        required
+      />
+      <span class="form-hint">
+        On-center distance between posts. Common: 8 ft or 10 ft.
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label for="post_key">Post Type</label>
+      <select id="post_key" name="post_key">
+        <option value="auto" {% if not data.post_key or data.post_key=='auto' %}selected{% endif %}>
+          Auto (let the calculator decide)
+        </option>
+        {% for key in post_keys %}
+        <option
+          value="{{ key }}"
+          {% if data.post_key==key %}selected{% endif %}
+        >{{ key }}</option>
+        {% endfor %}
+      </select>
+      <span class="form-hint">
+        Leave on "Auto" unless you know the specific post schedule.
+      </span>
+    </div>
+
+    <div class="info-card">
+      <strong>Understanding Post Spacing</strong>
+      <p>
+        The wind-load tables give a <b>maximum allowable spacing</b> for
+        each post size at the entered wind speed and height. The calculator
+        will compare your requested spacing against those limits and flag
+        any overage.
+      </p>
+      <p class="muted">
+        Shorter spacing = lower load per post = lighter hardware.
+      </p>
+    </div>
+
+    <div class="btn-group">
+      <a href="/" class="btn btn-secondary">&larr; Back</a>
+      <button type="submit" class="btn btn-primary btn-lg">
+        Next &rarr;
+      </button>
+    </div>
+  </div>
 </form>
 {% endblock %}

@@ -81,6 +81,14 @@ def _input_section(data: EstimateInput, styles: dict[str, ParagraphStyle]):
     return story
 
 
+def _recommendation_cell(result: EstimateOutput) -> str:
+    rec = result.recommended
+    post = rec.post_label or rec.post_key or rec.post_size or "N/A"
+    dia = rec.footing_diameter_in or "N/A"
+    emb = rec.embedment_in or "N/A"
+    return f"{post} footing {dia} in dia x {emb} in"
+
+
 def _result_section(result: EstimateOutput, styles: dict[str, ParagraphStyle]):
     story = []
     story.append(Paragraph("<b>Results</b>", styles["Heading2"]))
@@ -91,8 +99,7 @@ def _result_section(result: EstimateOutput, styles: dict[str, ParagraphStyle]):
         ["Load per post", f"{result.load_per_post_lb:.0f} lb"],
         [
             "Recommendation",
-            f"{result.recommended.post_label or result.recommended.post_key or result.recommended.post_size or 'N/A'} footing {result.recommended.footing_diameter_in or 'N/A'}"  # type: ignore[str-format]
-            f" in dia x {result.recommended.embedment_in or 'N/A'} in",
+            _recommendation_cell(result),
         ],
     ]
 
@@ -179,24 +186,24 @@ def _status_section(
     """Add structural status section to PDF."""
     story = []
     story.append(Paragraph("<b>Structural Status</b>", styles["Heading2"]))
-    
+
     # Status banner
     if risk_status == "GREEN":
-        status_text = "🟢 GREEN – Configuration is within recommended limits"
+        status_text = "🟢 GREEN - Configuration is within recommended limits"
         status_footer = "Meets preliminary structural criteria (Green Zone)."
         bg_color = colors.lightgreen
         text_color = colors.darkgreen
     elif risk_status == "YELLOW":
-        status_text = "🟡 YELLOW – Configuration is close to a structural limit"
+        status_text = "🟡 YELLOW - Configuration is close to a structural limit"
         status_footer = "Near-limit preliminary result — review recommended."
         bg_color = colors.yellow
         text_color = colors.darkorange
     else:  # RED
-        status_text = "🔴 RED – Configuration exceeds structural limits"
+        status_text = "🔴 RED - Configuration exceeds structural limits"
         status_footer = "NOT acceptable — change post size, spacing, or seek engineering."
         bg_color = colors.pink
         text_color = colors.darkred
-    
+
     # Status header
     status_style = ParagraphStyle(
         "StatusHeader",
@@ -210,14 +217,14 @@ def _status_section(
     )
     story.append(Paragraph(status_text, status_style))
     story.append(Spacer(1, 0.15 * inch))
-    
+
     # Status details
     if risk_details.get("reasons"):
         story.append(Paragraph("<b>Status Details:</b>", styles["Heading3"]))
         for reason in risk_details["reasons"]:
             story.append(Paragraph(f"• {reason}", styles["Normal"]))
         story.append(Spacer(1, 0.1 * inch))
-    
+
     # Ratios table
     ratio_rows = []
     if risk_details.get("spacing_ratio") is not None:
@@ -230,7 +237,7 @@ def _status_section(
             "Bending Capacity Utilization",
             f"{risk_details['moment_ratio']*100:.1f}%",
         ])
-    
+
     if ratio_rows:
         ratio_table = Table(ratio_rows)
         ratio_table.setStyle(
@@ -242,7 +249,7 @@ def _status_section(
         )
         story.append(ratio_table)
         story.append(Spacer(1, 0.1 * inch))
-    
+
     # Footer message
     footer_style = ParagraphStyle(
         "StatusFooter",
@@ -253,7 +260,7 @@ def _status_section(
     )
     story.append(Paragraph(status_footer, footer_style))
     story.append(Spacer(1, 0.2 * inch))
-    
+
     return story
 
 

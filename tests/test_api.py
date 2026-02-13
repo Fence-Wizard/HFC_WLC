@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.application import app
 
 client = TestClient(app)
 
@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_root_renders_step1():
     response = client.get("/")
     assert response.status_code == 200
-    assert "HFC Windload Wizard" in response.text
+    assert "Wind Load Calculator" in response.text
     assert "Step 1" in response.text
 
 
@@ -63,3 +63,38 @@ def test_health_endpoint():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_api_health_endpoint():
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy"}
+
+
+def test_api_root():
+    response = client.get("/api/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Windcalc API"
+
+
+def test_api_calculate():
+    payload = {
+        "fence": {
+            "height": 6.0,
+            "width": 100.0,
+            "material": "wood",
+            "location": "Test",
+        },
+        "wind": {
+            "wind_speed": 90.0,
+            "exposure_category": "B",
+            "importance_factor": 1.0,
+        },
+        "project_name": "API Test",
+    }
+    response = client.post("/api/calculate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["design_pressure"] > 0
+    assert data["total_load"] > 0

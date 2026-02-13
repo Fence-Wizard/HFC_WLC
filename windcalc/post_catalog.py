@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import math
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Literal
 
 PostGroup = Literal["IA_REG", "IA_HIGH", "IC_PIPE", "II_CSHAPE"]
 
@@ -17,15 +18,15 @@ class PostType:
     key: str  # internal key (used in forms / engine)
     label: str  # what PM sees
     group: PostGroup  # Cf1 group
-    od_in: Optional[float] = None  # outer diameter (pipe) OR None for C-shapes
-    wall_in: Optional[float] = None  # wall thickness (pipe)
+    od_in: float | None = None  # outer diameter (pipe) OR None for C-shapes
+    wall_in: float | None = None  # wall thickness (pipe)
     height_base_ft: float = 0.0  # height used in your tabulated spacing S_table
     spacing_base_ft: float = 0.0  # S_table: base spacing from your manual
     fy_ksi: float = 50.0  # yield strength (30 or 50 typically)
-    section_modulus_in3: Optional[float] = None  # precomputed for C-shapes
-    table_label: Optional[str] = None  # exact label used in the CSV tables
-    footing_diameter_in: Optional[float] = None  # default footing diameter
-    footing_embedment_in: Optional[float] = None  # default embedment depth
+    section_modulus_in3: float | None = None  # precomputed for C-shapes
+    table_label: str | None = None  # exact label used in the CSV tables
+    footing_diameter_in: float | None = None  # default footing diameter
+    footing_embedment_in: float | None = None  # default embedment depth
 
 
 POST_TYPES: dict[str, PostType] = {
@@ -234,7 +235,7 @@ def get_cf1(group: PostGroup, wind_speed_mph: float) -> float:
         return table[-1][1]
 
     # Linear interpolation
-    for (ws_lo, cf_lo), (ws_hi, cf_hi) in zip(table, table[1:]):
+    for (ws_lo, cf_lo), (ws_hi, cf_hi) in itertools.pairwise(table):
         if ws_lo <= wind_speed_mph <= ws_hi:
             t = (wind_speed_mph - ws_lo) / (ws_hi - ws_lo)
             return cf_lo + t * (cf_hi - cf_lo)
@@ -266,21 +267,21 @@ def compute_max_spacing_cf(
 
 def section_modulus_pipe(od_in: float, wall_in: float) -> float:
     """Section modulus S (in^3) for hollow circular tube."""
-    D = od_in
+    D = od_in  # noqa: N806
     t = wall_in
     d = D - 2 * t
-    S = math.pi * (D**4 - d**4) / (32 * D)
+    S = math.pi * (D**4 - d**4) / (32 * D)  # noqa: N806
     return S
 
 
 def bending_capacity_lb_in(
-    S_in3: float,
+    S_in3: float,  # noqa: N803
     fy_ksi: float,
     omega: float = 1.67,
 ) -> float:
     """Allowable moment in lb-in."""
     fy_psi = fy_ksi * 1000.0
-    M_allow = (fy_psi * S_in3) / omega
+    M_allow = (fy_psi * S_in3) / omega  # noqa: N806
     return M_allow
 
 
@@ -297,19 +298,19 @@ def compute_moment_check(
     # 1) Determine section modulus
     if post.section_modulus_in3 is not None:
         # For C-shapes or custom sections, you can pre-store S directly
-        S = post.section_modulus_in3
+        S = post.section_modulus_in3  # noqa: N806
     elif post.od_in is not None and post.wall_in is not None:
-        S = section_modulus_pipe(post.od_in, post.wall_in)
+        S = section_modulus_pipe(post.od_in, post.wall_in)  # noqa: N806
     else:
         # No geometry -> skip check
         return (0.0, 0.0, True)
 
     # 2) Allowable moment
-    M_allow = bending_capacity_lb_in(S, post.fy_ksi)
+    M_allow = bending_capacity_lb_in(S, post.fy_ksi)  # noqa: N806
 
     # 3) Demand moment (0.6 H above grade, inches)
     lever_arm_in = 0.6 * height_ft * 12.0
-    M_demand = load_per_post_lb * lever_arm_in
+    M_demand = load_per_post_lb * lever_arm_in  # noqa: N806
 
     is_ok = M_demand <= M_allow
     return (M_demand, M_allow, is_ok)
@@ -328,7 +329,7 @@ if TABLE_DIR.exists():
 
 
 @lru_cache(maxsize=32)
-def _load_ws_tables(ws_mph: int) -> Dict[PostGroup, Dict[str, Dict[float, float]]]:
+def _load_ws_tables(ws_mph: int) -> dict[PostGroup, dict[str, dict[float, float]]]:
     """
     Parse one <ws>mph.csv into:
       { group: { table_label: { height_ft: spacing_ft } } }
@@ -336,7 +337,7 @@ def _load_ws_tables(ws_mph: int) -> Dict[PostGroup, Dict[str, Dict[float, float]
     Returns empty dicts if file doesn't exist or can't be parsed.
     """
     path = TABLE_DIR / f"{ws_mph}mph.csv"
-    tables: Dict[PostGroup, Dict[str, Dict[float, float]]] = {
+    tables: dict[PostGroup, dict[str, dict[float, float]]] = {
         "IA_REG": {},
         "IA_HIGH": {},
         "IC_PIPE": {},
@@ -349,7 +350,7 @@ def _load_ws_tables(ws_mph: int) -> Dict[PostGroup, Dict[str, Dict[float, float]
     try:
         with path.open(newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
-            rows = list(reader)
+            _rows = list(reader)
 
         # TODO: Implement full CSV parsing logic here
         # The CSV structure needs to be analyzed to properly parse:
@@ -383,10 +384,7 @@ def compute_max_spacing_from_tables(
         return None  # no tables available
 
     ws_candidates = [ws for ws in _AVAILABLE_WS if ws >= wind_speed_mph]
-    if not ws_candidates:
-        ws_use = _AVAILABLE_WS[-1]  # use highest available
-    else:
-        ws_use = ws_candidates[0]
+    ws_use = _AVAILABLE_WS[-1] if not ws_candidates else ws_candidates[0]
 
     all_tables = _load_ws_tables(ws_use)
     group_tables = all_tables.get(post.group, {})
@@ -395,7 +393,7 @@ def compute_max_spacing_from_tables(
         return None
 
     # Choose height column: smallest tabulated height >= requested height
-    heights = sorted(h for h in row.keys() if h is not None)
+    heights = sorted(h for h in row if h is not None)
     if not heights:
         return None
 
@@ -412,17 +410,17 @@ def compute_max_spacing_from_tables(
 
 
 __all__ = [
+    "CF1_TABLE",
+    "DEFAULT_CF3",
+    "EXPOSURE_CF2",
+    "POST_TYPES",
     "PostGroup",
     "PostType",
-    "POST_TYPES",
-    "CF1_TABLE",
-    "EXPOSURE_CF2",
-    "DEFAULT_CF3",
-    "get_cf1",
+    "bending_capacity_lb_in",
     "compute_max_spacing_cf",
     "compute_max_spacing_from_tables",
-    "section_modulus_pipe",
-    "bending_capacity_lb_in",
     "compute_moment_check",
+    "get_cf1",
+    "section_modulus_pipe",
 ]
 

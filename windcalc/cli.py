@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -36,8 +35,8 @@ def calculate(
     wind_speed: float,
     exposure: str,
     importance: float,
-    project_name: Optional[str],
-    output: Optional[str],
+    project_name: str | None,
+    output: str | None,
 ):
     """Calculate wind load for a fence project."""
     fence = FenceSpecs(height=height, width=width, material=material, location=location)
@@ -63,7 +62,7 @@ def calculate(
 @main.command()
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option("--output", type=click.Path(), help="Output PDF file path")
-def report(input_file: str, output: Optional[str]):
+def report(input_file: str, output: str | None):
     """Generate PDF report from calculation results."""
     input_path = Path(input_file)
     data = json.loads(input_path.read_text())
@@ -76,11 +75,13 @@ def report(input_file: str, output: Optional[str]):
 
 @main.command()
 def serve():
-    """Start the FastAPI server."""
+    """Start the FastAPI server (wizard UI + JSON API)."""
     import uvicorn
 
-    click.echo("Starting Windcalc API server on http://localhost:8000")
-    uvicorn.run("windcalc.api:app", host="0.0.0.0", port=8000, reload=True)
+    click.echo("Starting Windcalc server on http://localhost:8000")
+    click.echo("  Wizard UI:  http://localhost:8000/")
+    click.echo("  JSON API:   http://localhost:8000/api/")
+    uvicorn.run("app.application:app", host="0.0.0.0", port=8000, reload=True)
 
 
 if __name__ == "__main__":

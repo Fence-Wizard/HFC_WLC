@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import os
+import logging
 import warnings
-from typing import Dict, Optional
 
 from windcalc.post_catalog import (
     POST_TYPES,
@@ -13,22 +12,24 @@ from windcalc.post_catalog import (
     compute_moment_check,
 )
 from windcalc.schemas import (
+    BlockResult,
     EstimateInput,
     EstimateOutput,
     Recommendation,
     SharedResult,
-    BlockResult,
-    WindConditions,
     WindLoadRequest,
     WindLoadResult,
 )
+from windcalc.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 # Placeholder constants - replace with proper ASCE 7 calculations for production use
 VELOCITY_PRESSURE_COEFFICIENT = 0.00256
 DESIGN_PRESSURE_MULTIPLIER = 1.2  # Simplified multiplier - replace with proper Cf coefficients
-EXPOSURE_FACTORS: Dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
+EXPOSURE_FACTORS: dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
 
-_LEGACY_POST_SIZE_TO_KEY: Dict[str, str] = {
+_LEGACY_POST_SIZE_TO_KEY: dict[str, str] = {
     # Legacy wizard strings (kept only for backward compatibility)
     '2-3/8" SS40': "2_3_8_SS40",
     '2-7/8" SS40': "2_7_8_SS40",
@@ -58,7 +59,7 @@ _LEGACY_POST_SIZE_TO_KEY: Dict[str, str] = {
     '8-5/8" Steel Pipe': "8_5_8_PIPE",
 }
 
-_LABEL_TO_KEY: Dict[str, str] = {post.label: key for key, post in POST_TYPES.items()}
+_LABEL_TO_KEY: dict[str, str] = {post.label: key for key, post in POST_TYPES.items()}
 _RECOMMENDATION_THRESHOLDS: tuple[tuple[float, str], ...] = (
     (500, "2_3_8_SS40"),
     (1000, "2_7_8_SS40"),
@@ -66,7 +67,7 @@ _RECOMMENDATION_THRESHOLDS: tuple[tuple[float, str], ...] = (
 )
 
 
-def _normalize_post_key(post_size: Optional[str]) -> Optional[str]:
+def _normalize_post_key(post_size: str | None) -> str | None:
     """Convert any display string (legacy) to a catalog key."""
     if not post_size:
         return None
@@ -76,16 +77,19 @@ def _normalize_post_key(post_size: Optional[str]) -> Optional[str]:
     # Check label-based mapping first, then legacy fallbacks
     normalized = _LABEL_TO_KEY.get(post_size) or _LEGACY_POST_SIZE_TO_KEY.get(post_size)
     if not normalized:
-        warnings.warn(f"Unknown post label '{post_size}', falling back to auto selection.")
+        warnings.warn(
+            f"Unknown post label '{post_size}', falling back to auto selection.",
+            stacklevel=2,
+        )
     return normalized
 
 
-def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> Recommendation:
+def _build_recommendation(post_key: str, source_label: str | None = None) -> Recommendation:
     """
     Build a Recommendation from a catalog key, pulling labels/footings from catalogs.
     """
     post = POST_TYPES.get(post_key)
-    strict_footing = os.getenv("WINDCALC_STRICT_FOOTING", "").lower() in {"1", "true", "yes"}
+    strict_footing = get_settings().strict_footing
 
     if post is None:
         footing_dia, embedment = (12.0, 30.0)
@@ -99,7 +103,7 @@ def _build_recommendation(post_key: str, source_label: Optional[str] = None) -> 
             )
             if strict_footing:
                 raise ValueError(msg)
-            warnings.warn(msg)
+            warnings.warn(msg, stacklevel=2)
             footing_dia = post.footing_diameter_in or 12.0
             embedment = post.footing_embedment_in or 30.0
         else:
@@ -134,9 +138,17 @@ def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
     """
     Calculate wind load for a fence project (legacy API).
 
+    .. deprecated:: 0.2.0
+        Use :func:`calculate` with :class:`EstimateInput` instead.
+
     This is a simplified placeholder implementation. The actual calculation should follow
     relevant building codes (ASCE 7, etc.) for wind load on fences.
     """
+    warnings.warn(
+        "calculate_wind_load() is deprecated; use calculate() with EstimateInput instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     wind_speed = request.wind.wind_speed
     importance = request.wind.importance_factor
@@ -162,7 +174,7 @@ def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
 
 def _compute_block(
     role: str,
-    post_key: Optional[str],
+    post_key: str | None,
     load_per_post_lb: float,
     data: EstimateInput,
     exposure_factor: float,
@@ -183,10 +195,10 @@ def _compute_block(
         recommended = _recommend_auto_by_load(load_per_post_lb)
         effective_key = recommended.post_key
 
-    max_spacing_ft: Optional[float] = None
-    M_demand_lb_in: Optional[float] = None
-    M_allow_lb_in: Optional[float] = None
-    moment_ok: Optional[bool] = None
+    max_spacing_ft: float | None = None
+    M_demand_lb_in: float | None = None  # noqa: N806
+    M_allow_lb_in: float | None = None  # noqa: N806
+    moment_ok: bool | None = None
 
     if effective_key and effective_key in POST_TYPES:
         table_spacing = compute_max_spacing_from_tables(
@@ -216,7 +228,7 @@ def _compute_block(
                 "exceeds this simplified limit."
             )
 
-        M_demand_lb_in, M_allow_lb_in, moment_ok = compute_moment_check(
+        M_demand_lb_in, M_allow_lb_in, moment_ok = compute_moment_check(  # noqa: N806
             post_key=effective_key,
             height_ft=data.height_total_ft,
             load_per_post_lb=load_per_post_lb,
@@ -258,9 +270,14 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     total_load_lb = round(pressure_psf * area, 2)
     load_per_post_lb = round(total_load_lb / 2, 2)
 
+    # Resolve post_key from legacy post_size if needed
+    effective_post_key = data.post_key
+    if not effective_post_key and data.post_size:
+        effective_post_key = _normalize_post_key(data.post_size)
+
     # Resolve line/terminal keys (fall back to deprecated single key if provided)
-    line_post_key = data.line_post_key or data.post_key
-    terminal_post_key = data.terminal_post_key or data.post_key
+    line_post_key = data.line_post_key or effective_post_key
+    terminal_post_key = data.terminal_post_key or effective_post_key
 
     shared = SharedResult(
         pressure_psf=pressure_psf,
@@ -318,11 +335,15 @@ def calculate(data: EstimateInput) -> EstimateOutput:
 
 def _recommend_member_with_override(
     load_per_post: float,
-    post_size_override: Optional[str],
-    post_key: Optional[str] = None,
+    post_size_override: str | None,
+    post_key: str | None = None,
 ) -> Recommendation:
     """
     Choose post + footing.
+
+    .. deprecated:: 0.2.0
+        Internal function retained for backward compatibility only.
+        New code should use :func:`_compute_block` which handles post selection.
 
     - If no override is given, fall back to the load-based auto selector.
     - If an override is given and recognized in POST_TYPES:

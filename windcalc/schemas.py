@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Literal, Dict, Any
+from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -30,49 +30,55 @@ class WindLoadRequest(BaseModel):
 
     fence: FenceSpecs
     wind: WindConditions
-    project_name: Optional[str] = Field(None, description="Optional project identifier")
+    project_name: str | None = Field(None, description="Optional project identifier")
 
 
 class WindLoadResult(BaseModel):
     """Result model for wind load calculation."""
 
-    project_name: Optional[str] = None
+    project_name: str | None = None
     design_pressure: float = Field(..., description="Design wind pressure in psf")
     total_load: float = Field(..., description="Total wind load in lbs")
     fence_specs: FenceSpecs
     wind_conditions: WindConditions
-    calculation_notes: Optional[str] = None
+    calculation_notes: str | None = None
 
 
 # Wizard-friendly schemas
 class Recommendation(BaseModel):
     """Recommended post and footing selection."""
 
-    post_key: Optional[str] = Field(None, description="Catalog key for the recommended post")
-    post_label: Optional[str] = Field(
+    post_key: str | None = Field(None, description="Catalog key for the recommended post")
+    post_label: str | None = Field(
         None, description="Human-friendly label sourced from POST_TYPES"
     )
     # Kept for backward compatibility with legacy UI strings; prefer post_key/post_label.
-    post_size: Optional[str] = Field(
+    post_size: str | None = Field(
         None, description="Deprecated: legacy post size label (use post_key instead)"
     )
-    footing_diameter_in: Optional[float] = Field(None, description="Footing diameter in inches")
-    embedment_in: Optional[float] = Field(None, description="Embedment depth in inches")
+    footing_diameter_in: float | None = Field(None, description="Footing diameter in inches")
+    embedment_in: float | None = Field(None, description="Embedment depth in inches")
 
 
 class EstimateInput(BaseModel):
     """Inputs for a bay-style wind load estimate."""
 
-    wind_speed_mph: float = Field(..., gt=0, description="Design wind speed in mph")
-    height_total_ft: float = Field(..., gt=0, description="Total fence height in feet")
-    post_spacing_ft: float = Field(..., gt=0, description="Spacing between posts in feet")
+    wind_speed_mph: float = Field(
+        ..., gt=0, le=300, description="Design wind speed in mph (ASCE 7 range)"
+    )
+    height_total_ft: float = Field(
+        ..., gt=0, le=50, description="Total fence height in feet"
+    )
+    post_spacing_ft: float = Field(
+        ..., gt=0, le=30, description="Spacing between posts in feet"
+    )
     exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
-    soil_type: Optional[str] = Field(None, description="Optional soil descriptor")
+    soil_type: str | None = Field(None, description="Optional soil descriptor")
     # New dual post selections
-    line_post_key: Optional[str] = Field(
+    line_post_key: str | None = Field(
         None, description="Optional line post key override (e.g., '2_3_8_SS40')"
     )
-    terminal_post_key: Optional[str] = Field(
+    terminal_post_key: str | None = Field(
         None, description="Optional terminal post key override (e.g., '3_1_2_SS40')"
     )
     # Deprecated single selections (kept for backward compatibility)
@@ -80,10 +86,10 @@ class EstimateInput(BaseModel):
         default="line",
         description="Deprecated: single post role; prefer line/terminal post keys",
     )
-    post_key: Optional[str] = Field(
+    post_key: str | None = Field(
         None, description="Deprecated: single post key override (prefer line/terminal keys)"
     )
-    post_size: Optional[str] = Field(
+    post_size: str | None = Field(
         None,
         description="Legacy post size override string (e.g., '2-3/8\" SS40'); prefer post_key",
     )
@@ -103,23 +109,16 @@ class SharedResult(BaseModel):
 
 
 class BlockResult(BaseModel):
-    post_key: Optional[str] = None
-    post_label: Optional[str] = None
+    post_key: str | None = None
+    post_label: str | None = None
     recommended: Recommendation
-    warnings: List[str] = Field(default_factory=list)
-    assumptions: List[str] = Field(default_factory=list)
-    max_spacing_ft: Optional[float] = None
-    M_demand_ft_lb: Optional[float] = None
-    M_allow_ft_lb: Optional[float] = None
-    moment_ok: Optional[bool] = None
+    warnings: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    max_spacing_ft: float | None = None
+    M_demand_ft_lb: float | None = None
+    M_allow_ft_lb: float | None = None
+    moment_ok: bool | None = None
     status: str = "GREEN"
-
-    @computed_field
-    @property
-    def area_per_bay_ft2(self) -> float:
-        """Calculated tributary area for a single bay."""
-
-        return self.height_total_ft * self.post_spacing_ft
 
 
 class EstimateOutput(BaseModel):
@@ -131,24 +130,43 @@ class EstimateOutput(BaseModel):
     terminal: BlockResult
     overall_status: str = "GREEN"
     # Legacy top-level fields (mapped to line block for compatibility)
-    pressure_psf: float = Field(..., description="Applied pressure in psf (legacy; line block)")
-    area_per_bay_ft2: float = Field(..., description="Area of a single bay in square feet (legacy; line block)")
-    total_load_lb: float = Field(..., description="Total load on a bay in pounds (legacy; line block)")
-    load_per_post_lb: float = Field(..., description="Load per post in pounds (legacy; line block)")
+    pressure_psf: float = Field(
+        ..., description="Applied pressure in psf (legacy; line block)"
+    )
+    area_per_bay_ft2: float = Field(
+        ...,
+        description="Area of a single bay in square feet (legacy; line block)",
+    )
+    total_load_lb: float = Field(
+        ...,
+        description="Total load on a bay in pounds (legacy; line block)",
+    )
+    load_per_post_lb: float = Field(
+        ..., description="Load per post in pounds (legacy; line block)"
+    )
     recommended: Recommendation
-    warnings: List[str] = Field(default_factory=list)
-    assumptions: List[str] = Field(default_factory=list)
-    max_spacing_ft: Optional[float] = Field(None, description="Maximum recommended spacing for the chosen post (legacy; line block)")
-    M_demand_ft_lb: Optional[float] = Field(None, description="Bending moment demand in ft·lb (legacy; line block)")
-    M_allow_ft_lb: Optional[float] = Field(None, description="Allowable bending moment in ft·lb (legacy; line block)")
+    warnings: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    max_spacing_ft: float | None = Field(
+        None,
+        description="Maximum recommended spacing for the chosen post (legacy; line block)",
+    )
+    M_demand_ft_lb: float | None = Field(
+        None,
+        description="Bending moment demand in ft-lb (legacy; line block)",
+    )
+    M_allow_ft_lb: float | None = Field(
+        None,
+        description="Allowable bending moment in ft-lb (legacy; line block)",
+    )
 
 
 __all__ = [
+    "EstimateInput",
+    "EstimateOutput",
     "FenceSpecs",
+    "Recommendation",
     "WindConditions",
     "WindLoadRequest",
     "WindLoadResult",
-    "Recommendation",
-    "EstimateInput",
-    "EstimateOutput",
 ]

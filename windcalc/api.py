@@ -1,34 +1,36 @@
-"""FastAPI application for windcalc."""
+"""FastAPI REST API router for windcalc."""
 
-from fastapi import FastAPI, HTTPException
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, HTTPException
 
 from windcalc.engine import calculate_wind_load
 from windcalc.schemas import WindLoadRequest, WindLoadResult
 
-app = FastAPI(
-    title="Windcalc API",
-    description="Local-first wind load calculator for fence projects",
-    version="0.1.0",
-)
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api", tags=["api"])
 
 
-@app.get("/")
-async def root():
-    """Root endpoint."""
+@router.get("/")
+async def api_root():
+    """API root endpoint."""
     return {
         "message": "Windcalc API",
         "version": "0.1.0",
-        "endpoints": ["/calculate", "/health"],
+        "endpoints": ["/api/calculate", "/api/health", "/api/projects"],
     }
 
 
-@app.get("/health")
-async def health():
-    """Health check endpoint."""
+@router.get("/health")
+async def api_health():
+    """API health check endpoint."""
     return {"status": "healthy"}
 
 
-@app.post("/calculate", response_model=WindLoadResult)
+@router.post("/calculate", response_model=WindLoadResult)
 async def calculate(request: WindLoadRequest):
     """
     Calculate wind load for fence project.
@@ -46,14 +48,16 @@ async def calculate(request: WindLoadRequest):
         result = calculate_wind_load(request)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Calculation error: {str(e)}")
+        logger.warning("Calculation error: %s", e)
+        raise HTTPException(status_code=400, detail=f"Calculation error: {e!s}") from e
     except Exception:
+        logger.exception("Unexpected error during calculation")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred during calculation"
-        )
+        ) from None
 
 
-@app.get("/api/projects")
+@router.get("/projects")
 async def list_projects():
     """
     List saved projects (placeholder).
@@ -62,9 +66,3 @@ async def list_projects():
         List of saved projects
     """
     return {"projects": []}
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

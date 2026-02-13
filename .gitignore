@@ -49,3 +49,11 @@ reports/
 
 # Logs
 *.log
+
+# Ruff / mypy caches
+.ruff_cache/
+.mypy_cache/
+
+# Environment files
+.env
+.env.*

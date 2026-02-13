@@ -1,24 +1,109 @@
 {% extends "base.html" %}
+
+{% block title %}Step 3 - Job Info | HFC Windload Calculator{% endblock %}
+
+{% block progress %}
+<div class="progress-bar">
+  <div class="progress-bar-inner">
+    <div class="progress-step completed">
+      <span class="progress-dot">&#10003;</span>
+      <span>Wind</span>
+    </div>
+    <div class="progress-connector completed"></div>
+    <div class="progress-step completed">
+      <span class="progress-dot">&#10003;</span>
+      <span>Geometry</span>
+    </div>
+    <div class="progress-connector completed"></div>
+    <div class="progress-step active">
+      <span class="progress-dot">3</span>
+      <span>Job Info</span>
+    </div>
+    <div class="progress-connector"></div>
+    <div class="progress-step">
+      <span class="progress-dot">4</span>
+      <span>Results</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
-<h2>Step 3 – Soil / Job info</h2>
 <form method="post" action="/review">
+  <!-- Carry forward all previous data -->
   <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
   <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
   <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
   <input type="hidden" name="exposure" value="{{ data.exposure }}" />
   <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />
   <input type="hidden" name="post_spacing_ft" value="{{ data.post_spacing_ft }}" />
+  <input type="hidden" name="post_key" value="{{ data.post_key }}" />
 
-  <label>Soil / condition type:</label>
-  <input
-    type="text"
-    name="soil_type"
-    value="{{ data.soil_type or 'default' }}"
-  />
+  <div class="card">
+    <div class="card-header">
+      <h2>Step 3 - Job Information</h2>
+      <p>Optional project details to include on the report.</p>
+    </div>
 
-  <label>Job name / reference:</label>
-  <input type="text" name="job_name" value="{{ data.job_name or '' }}" />
+    <div class="form-group">
+      <label for="project_name">Project Name</label>
+      <input
+        type="text"
+        id="project_name"
+        name="project_name"
+        value="{{ data.project_name or '' }}"
+        placeholder="e.g. Hampton Roads Naval Base - Phase 2"
+      />
+    </div>
 
-  <button type="submit">Review & Calculate</button>
+    <div class="form-group">
+      <label for="location">Location / Address</label>
+      <input
+        type="text"
+        id="location"
+        name="location"
+        value="{{ data.location or '' }}"
+        placeholder="e.g. Norfolk, VA"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="estimator">Estimator</label>
+      <input
+        type="text"
+        id="estimator"
+        name="estimator"
+        value="{{ data.estimator or '' }}"
+        placeholder="e.g. John Smith"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="notes">Notes</label>
+      <textarea
+        id="notes"
+        name="notes"
+        rows="3"
+        placeholder="Any additional notes for the report..."
+      >{{ data.notes or '' }}</textarea>
+    </div>
+
+    <div class="info-card">
+      <strong>Almost there!</strong>
+      <p>
+        This information is optional and only appears on the PDF report.
+        Click <b>Calculate</b> to run the wind-load estimate with your inputs.
+      </p>
+    </div>
+
+    <div class="btn-group">
+      <button type="button" class="btn btn-secondary" onclick="history.back()">
+        &larr; Back
+      </button>
+      <button type="submit" class="btn btn-primary btn-lg">
+        Calculate &rarr;
+      </button>
+    </div>
+  </div>
 </form>
 {% endblock %}

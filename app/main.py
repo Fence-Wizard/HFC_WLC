@@ -1,28 +1,31 @@
-"""FastAPI wizard for wind load calculations."""
+"""FastAPI wizard routes for wind load calculations."""
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-from fastapi import FastAPI, Form, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from windcalc import EstimateInput, EstimateOutput, calculate
+from windcalc import EstimateInput, calculate
 from windcalc.post_catalog import POST_TYPES
 from windcalc.report import draw_pdf
+from windcalc.risk import classify_risk
+from windcalc.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
-REPORT_DIR = Path.home() / "Windload Reports"
+
+_settings = get_settings()
+REPORT_DIR = _settings.report_dir
 REPORT_DIR.mkdir(exist_ok=True)
 
-app = FastAPI(title="HFC Windload Calculator")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 POST_OPTIONS = sorted(
@@ -31,10 +34,12 @@ POST_OPTIONS = sorted(
 )
 POST_LABELS = {key: post.label for key, post in POST_TYPES.items()}
 
+router = APIRouter(tags=["wizard"])
 
-@app.get("/", response_class=HTMLResponse)
+
+@router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    """Step 1 – wind speed & exposure."""
+    """Step 1 - wind speed & exposure."""
 
     return templates.TemplateResponse(
         request,
@@ -43,7 +48,7 @@ async def index(request: Request):
     )
 
 
-@app.post("/step2", response_class=HTMLResponse)
+@router.post("/step2", response_class=HTMLResponse)
 async def step2(
     request: Request,
     zip_code: str = Form(...),
@@ -60,11 +65,11 @@ async def step2(
     return templates.TemplateResponse(
         request,
         "wizard_step2.html",
-        {"data": data, "errors": []},
+        {"data": data, "errors": [], "post_keys": sorted(POST_TYPES.keys())},
     )
 
 
-@app.post("/step3", response_class=HTMLResponse)
+@router.post("/step3", response_class=HTMLResponse)
 async def step3(
     request: Request,
     zip_code: str = Form(...),
@@ -73,6 +78,7 @@ async def step3(
     exposure: str = Form(...),
     height_total_ft: float = Form(...),
     post_spacing_ft: float = Form(...),
+    post_key: str = Form("auto"),
 ):
     data = {
         "zip_code": zip_code,
@@ -81,6 +87,7 @@ async def step3(
         "exposure": exposure,
         "height_total_ft": height_total_ft,
         "post_spacing_ft": post_spacing_ft,
+        "post_key": post_key,
     }
     return templates.TemplateResponse(
         request,
@@ -89,7 +96,7 @@ async def step3(
     )
 
 
-@app.post("/review", response_class=HTMLResponse)
+@router.post("/review", response_class=HTMLResponse)
 async def review(
     request: Request,
     zip_code: str = Form(...),
@@ -100,6 +107,10 @@ async def review(
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
     job_name: str = Form(""),
+    project_name: str = Form(""),
+    location: str = Form(""),
+    estimator: str = Form(""),
+    notes: str = Form(""),
     line_post_key: str = Form("auto"),
     terminal_post_key: str = Form("auto"),
     post_role: str = Form("line"),  # deprecated
@@ -114,7 +125,11 @@ async def review(
         "height_total_ft": height_total_ft,
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
-        "job_name": job_name,
+        "job_name": job_name or project_name,
+        "project_name": project_name or job_name,
+        "location": location,
+        "estimator": estimator,
+        "notes": notes,
         "line_post_key": line_post_key or "auto",
         "terminal_post_key": terminal_post_key or "auto",
         "post_role": post_role or "line",
@@ -128,7 +143,9 @@ async def review(
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
         soil_type=soil_type or None,
-        line_post_key=None if not line_post_key or line_post_key == "auto" else line_post_key,
+        line_post_key=None
+        if not line_post_key or line_post_key == "auto"
+        else line_post_key,
         terminal_post_key=None
         if not terminal_post_key or terminal_post_key == "auto"
         else terminal_post_key,
@@ -153,7 +170,7 @@ async def review(
     )
 
 
-@app.get("/download")
+@router.get("/download")
 async def download(
     zip_code: str,
     risk_category: str,
@@ -197,7 +214,7 @@ async def download(
         "post_key": post_key or "",
         "post_size": post_size or "",
     })
-    
+
     draw_pdf(pdf_path, inp, out, risk_status=risk, risk_details=risk_details)
 
     return FileResponse(
@@ -207,82 +224,6 @@ async def download(
     )
 
 
-@app.get("/health")
+@router.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-def classify_risk(
-    out: EstimateOutput,
-    data: dict[str, Any],
-) -> tuple[str, dict[str, Any]]:
-    """
-    Classify risk status (GREEN/YELLOW/RED).
-
-    GREEN / YELLOW / RED are based on spacing vs table limits.
-    Bending check is kept as advisory information only and does
-    NOT override the spacing-based status.
-    """
-    details: dict[str, Any] = {
-        "reasons": [],
-        "advanced_reasons": [],
-        "line_spacing_ratio": None,
-        "line_max_spacing_ft": None,
-        "terminal_bending_ratio": None,
-    }
-
-    status = out.overall_status if hasattr(out, "overall_status") else "GREEN"
-
-    # Line spacing info
-    if hasattr(out, "line") and out.line.max_spacing_ft:
-        spacing_ratio = data.get("post_spacing_ft", 0) / out.line.max_spacing_ft
-        details["line_spacing_ratio"] = spacing_ratio
-        details["line_max_spacing_ft"] = out.line.max_spacing_ft
-        if spacing_ratio > 1.15:
-            details["reasons"].append(
-                f"Line spacing at {spacing_ratio*100:.0f}% of limit "
-                f"({data.get('post_spacing_ft', 0):.2f} ft vs {out.line.max_spacing_ft:.2f} ft max)"
-            )
-        elif spacing_ratio > 1.0:
-            details["reasons"].append(
-                f"Line spacing slightly above limit "
-                f"({data.get('post_spacing_ft', 0):.2f} ft vs {out.line.max_spacing_ft:.2f} ft max)"
-            )
-
-    # Terminal bending info
-    if hasattr(out, "terminal") and out.terminal.M_allow_ft_lb:
-        ratio = (
-            out.terminal.M_demand_ft_lb / out.terminal.M_allow_ft_lb
-            if out.terminal.M_demand_ft_lb and out.terminal.M_allow_ft_lb
-            else None
-        )
-        details["terminal_bending_ratio"] = ratio
-        if ratio is not None:
-            msg = (
-                f"Terminal bending utilization: {ratio*100:.0f}% "
-                f"({out.terminal.M_demand_ft_lb:.1f} / {out.terminal.M_allow_ft_lb:.1f} ft·lb)"
-            )
-            details["reasons"].append(msg)
-
-    # Line bending advisory
-    if hasattr(out, "line") and out.line.M_allow_ft_lb:
-        ratio = (
-            out.line.M_demand_ft_lb / out.line.M_allow_ft_lb
-            if out.line.M_demand_ft_lb and out.line.M_allow_ft_lb
-            else None
-        )
-        if ratio is not None:
-            msg = (
-                "Advisory – Simplified cantilever bending check (conservative): "
-                f"{ratio*100:.0f}% "
-                f"({out.line.M_demand_ft_lb:.1f} / {out.line.M_allow_ft_lb:.1f} ft·lb)"
-            )
-            details["advanced_reasons"].append(msg)
-
-    return status, details
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,7 +1,10 @@
 """Tests for windcalc engine."""
 
+import warnings
+
 from windcalc import EstimateInput, calculate
 from windcalc.engine import calculate_wind_load
+from windcalc.risk import classify_risk
 from windcalc.schemas import FenceSpecs, WindConditions, WindLoadRequest
 
 
@@ -58,10 +61,9 @@ def test_warning_triggered_for_tall_fence():
 
 def test_line_post_bending_over_one_is_advisory_not_fail():
     """
-    For line posts, bending utilization > 1.0 should not fail overall status.
+    For line posts, bending utilization > 1.0 should NOT cause the line block
+    status to go RED.  (Terminal status is determined independently.)
     """
-    from app.main import classify_risk
-
     inp = EstimateInput(
         wind_speed_mph=150,
         height_total_ft=20,
@@ -71,17 +73,20 @@ def test_line_post_bending_over_one_is_advisory_not_fail():
     )
     out = calculate(inp)
 
-    status, details = classify_risk(
+    # The LINE block status must not be RED due to bending alone
+    # (spacing is within limits, and bending for line posts is advisory-only)
+    assert out.line.status != "RED"
+
+    # Line bending advisory should appear via classify_risk
+    _status, details = classify_risk(
         out,
         {
             "post_spacing_ft": inp.post_spacing_ft,
             "post_role": "line",
         },
     )
-
-    assert status != "RED"
     assert any(
-        "Advisory – Simplified cantilever bending check (conservative)" in reason
+        "Advisory - Simplified cantilever bending check (conservative)" in reason
         for reason in details.get("advanced_reasons", [])
     )
 
@@ -90,8 +95,6 @@ def test_terminal_post_bending_over_one_sets_fail():
     """
     For terminal posts, bending utilization > 1.0 should set status to RED.
     """
-    from app.main import classify_risk
-
     inp = EstimateInput(
         wind_speed_mph=150,
         height_total_ft=12,
@@ -112,7 +115,7 @@ def test_terminal_post_bending_over_one_sets_fail():
     )
 
     assert status == "RED"
-    assert any("Bending check (terminal post)" in reason for reason in details.get("reasons", []))
+    assert any("Terminal bending utilization" in reason for reason in details.get("reasons", []))
 
 
 def test_manual_post_key_uses_catalog_footing():
@@ -174,7 +177,8 @@ def test_swapping_post_key_changes_bending_and_spacing():
 
 def test_auto_and_manual_same_post_have_same_footing():
     """
-    Auto recommendation for a light load should pick 2_3_8_SS40; manual override of same key must match footing.
+    Auto recommendation for a light load should pick 2_3_8_SS40;
+    manual override of same key must match footing.
     """
     # Auto select with light load (below 500 -> 2_3_8_SS40)
     auto_inp = EstimateInput(
@@ -190,16 +194,21 @@ def test_auto_and_manual_same_post_have_same_footing():
 
     assert auto_out.line.post_key == "2_3_8_SS40"
     assert manual_out.line.post_key == "2_3_8_SS40"
-    assert auto_out.line.recommended.footing_diameter_in == manual_out.line.recommended.footing_diameter_in
-    assert auto_out.line.recommended.embedment_in == manual_out.line.recommended.embedment_in
+    assert (
+        auto_out.line.recommended.footing_diameter_in
+        == manual_out.line.recommended.footing_diameter_in
+    )
+    assert (
+        auto_out.line.recommended.embedment_in
+        == manual_out.line.recommended.embedment_in
+    )
 
 
 def test_bending_output_single_location():
     """
-    Bending utilization should appear only once (advanced for line posts), not in warnings.
+    Line bending should appear only as advisory in advanced_reasons, not in warnings.
+    Terminal bending may correctly appear in reasons (it is NOT advisory).
     """
-    from app.main import classify_risk
-
     inp = EstimateInput(
         wind_speed_mph=150,
         height_total_ft=12,
@@ -210,7 +219,7 @@ def test_bending_output_single_location():
     )
     out = calculate(inp)
 
-    status, details = classify_risk(
+    _status, details = classify_risk(
         out,
         {
             "post_spacing_ft": inp.post_spacing_ft,
@@ -218,13 +227,13 @@ def test_bending_output_single_location():
         },
     )
 
-    reasons = " ".join(details.get("reasons", []))
-    warnings_joined = " ".join(out.warnings)
     adv = " ".join(details.get("advanced_reasons", []))
+    warnings_joined = " ".join(out.warnings)
 
-    assert reasons.lower().count("bending utilization") == 0
-    assert adv.lower().count("bending utilization") == 1
-    assert "bending utilization" not in warnings_joined.lower()
+    # Line bending is advisory-only and must appear exactly once in advanced_reasons
+    assert adv.lower().count("advisory") == 1
+    # Line bending advisory text should NOT appear in engine warnings
+    assert "advisory" not in warnings_joined.lower()
 
 
 def test_unknown_legacy_label_falls_back_to_auto_with_warning():
@@ -263,7 +272,9 @@ def test_legacy_api_still_available():
     wind = WindConditions(wind_speed=90.0, exposure_category="B", importance_factor=1.0)
     request = WindLoadRequest(fence=fence, wind=wind, project_name="Test")
 
-    result = calculate_wind_load(request)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        result = calculate_wind_load(request)
 
     assert result.design_pressure > 0
     assert result.total_load > 0

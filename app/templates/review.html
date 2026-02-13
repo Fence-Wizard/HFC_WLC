@@ -1,156 +1,344 @@
 {% extends "base.html" %}
+
+{% block title %}Results | HFC Windload Calculator{% endblock %}
+
+{% block progress %}
+<div class="progress-bar">
+  <div class="progress-bar-inner">
+    <div class="progress-step completed">
+      <span class="progress-dot">&#10003;</span>
+      <span>Wind</span>
+    </div>
+    <div class="progress-connector completed"></div>
+    <div class="progress-step completed">
+      <span class="progress-dot">&#10003;</span>
+      <span>Geometry</span>
+    </div>
+    <div class="progress-connector completed"></div>
+    <div class="progress-step completed">
+      <span class="progress-dot">&#10003;</span>
+      <span>Job Info</span>
+    </div>
+    <div class="progress-connector completed"></div>
+    <div class="progress-step active">
+      <span class="progress-dot">4</span>
+      <span>Results</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
-<h2>Review & Results</h2>
 
-<h3>Inputs</h3>
-<ul>
-  <li>ZIP code: {{ data.zip_code }}</li>
-  <li>Risk category: {{ data.risk_category }}</li>
-  <li>Wind: {{ data.wind_speed_mph }} mph</li>
-  <li>Exposure: {{ data.exposure }}</li>
-  <li>Height: {{ data.height_total_ft }} ft</li>
-  <li>Post spacing: <strong>{{ data.post_spacing_ft }} ft</strong></li>
-  {% set current_post_key = data.post_key or result.recommended.post_key or "" %}
-  {% set current_post_label = post_labels.get(current_post_key) or result.recommended.post_label %}
-  <li>
-    Post type (current):
-    {{ current_post_label or "Auto (based on load)" }}
-  </li>
-  <li>Soil type: {{ data.soil_type }}</li>
-  <li>Job: {{ data.job_name }}</li>
-</ul>
+<!-- ===== Overall Status Banner ===== -->
+{% set status_class = {
+  "GREEN": "status-green",
+  "YELLOW": "status-yellow",
+  "RED": "status-red"
+}.get(result.overall_status, "status-green") %}
 
-<h3>Results</h3>
-<ul>
-  <li>Pressure: {{ "%.2f"|format(result.pressure_psf) }} psf</li>
-  <li>Area per bay: <strong>{{ "%.1f"|format(result.area_per_bay_ft2) }} ft²</strong> (height × spacing = {{ data.height_total_ft }} × {{ data.post_spacing_ft }})</li>
-  <li>Total load per bay: <strong>{{ "%.0f"|format(result.total_load_lb) }} lb</strong></li>
-  <li>Load per post: <strong>{{ "%.0f"|format(result.load_per_post_lb) }} lb</strong></li>
-  <li>
-    Recommended post:
-    {{ result.recommended.post_label or result.recommended.post_key or 'N/A' }}
-  </li>
-  <li>
-    Footing:
-    {{ result.recommended.footing_diameter_in or 'N/A' }} in dia ×
-    {{ result.recommended.embedment_in or 'N/A' }} in deep
-  </li>
-</ul>
+{% set status_icon = {
+  "GREEN": "&#10004;",
+  "YELLOW": "&#9888;",
+  "RED": "&#10060;"
+}.get(result.overall_status, "&#10004;") %}
 
-{% if result.max_spacing_ft %}
-  <p>
-    <strong>Max recommended spacing for this post at these conditions:</strong>
-    approx {{ "%.2f"|format(result.max_spacing_ft) }} ft.
-  </p>
+{% set status_title = {
+  "GREEN": "Within Limits",
+  "YELLOW": "Marginal - Review Carefully",
+  "RED": "Exceeds Limits - Action Required"
+}.get(result.overall_status, "Results") %}
 
-  {% if data.post_spacing_ft > result.max_spacing_ft %}
-    <p style="font-weight: bold;">
-      ⚠ Current spacing {{ "%.2f"|format(data.post_spacing_ft) }} ft exceeds this limit.
-      Consider tightening spacing or increasing post size.
-    </p>
-  {% endif %}
-{% endif %}
+{% set status_desc = {
+  "GREEN": "The requested post spacing is within the allowable limits for the selected wind speed and exposure.",
+  "YELLOW": "The requested configuration is near the edge of allowable limits. Consider reducing post spacing or using heavier posts.",
+  "RED": "The requested post spacing exceeds the allowable maximum. Reduce spacing, increase post size, or consult the project engineer."
+}.get(result.overall_status, "") %}
 
-<h3>Try a different spacing / post type</h3>
-<form method="post" action="/review" enctype="multipart/form-data">
-  <!-- Keep all existing inputs as hidden so the calculation stays tied to the same job -->
-  <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
-  <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
-  <input type="hidden" name="wind_speed_mph" value="{{ data.wind_speed_mph }}" />
-  <input type="hidden" name="exposure" value="{{ data.exposure }}" />
-  <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />
-  <input type="hidden" name="soil_type" value="{{ data.soil_type }}" />
-  <input type="hidden" name="job_name" value="{{ data.job_name }}" />
-  <!-- Legacy post_size preserved for backward compatibility but not used for selection -->
-  <input type="hidden" name="post_size" value="{{ data.post_size }}" />
-  <input type="hidden" name="post_role" value="{{ data.post_role }}" />
+<div class="status-banner {{ status_class }}">
+  <span class="status-icon">{{ status_icon }}</span>
+  <div class="status-body">
+    <h3>{{ status_title }}</h3>
+    <p>{{ status_desc }}</p>
+  </div>
+</div>
 
-  <label for="post_spacing_ft">Post spacing (ft):</label>
-  <input
-    type="number"
-    id="post_spacing_ft"
-    name="post_spacing_ft"
-    step="0.1"
-    min="2"
-    max="20"
-    value="{{ data.post_spacing_ft }}"
-    required
-  />
+<!-- ===== Quick Summary Tiles ===== -->
+<div class="results-grid">
+  <div class="result-tile">
+    <div class="result-value">{{ "%.1f"|format(result.shared.pressure_psf) }}</div>
+    <div class="result-label">Wind Pressure</div>
+    <div class="result-unit">psf</div>
+  </div>
+  <div class="result-tile">
+    <div class="result-value">{{ "%.0f"|format(result.shared.total_load_lb) }}</div>
+    <div class="result-label">Bay Load</div>
+    <div class="result-unit">lb</div>
+  </div>
+  <div class="result-tile">
+    <div class="result-value">{{ "%.0f"|format(result.shared.load_per_post_lb) }}</div>
+    <div class="result-label">Per Post</div>
+    <div class="result-unit">lb</div>
+  </div>
+  <div class="result-tile">
+    <div class="result-value">{{ "%.1f"|format(result.shared.area_per_bay_ft2) }}</div>
+    <div class="result-label">Bay Area</div>
+    <div class="result-unit">ft&sup2;</div>
+  </div>
+</div>
 
-  <label for="line_post_key">Line post type:</label>
-  <select id="line_post_key" name="line_post_key">
-    {% set current_line_post = data.line_post_key or "auto" %}
-    <option value="auto" {% if current_line_post == "auto" %}selected{% endif %}>
-      Auto (based on load)
-    </option>
+<!-- ===== Input Parameters Card ===== -->
+<div class="card">
+  <div class="card-header">
+    <h2>Input Parameters</h2>
+    {% if data.project_name %}
+    <p>{{ data.project_name }}{% if data.location %} &mdash; {{ data.location }}{% endif %}</p>
+    {% endif %}
+  </div>
+  <table class="data-table">
+    <tr>
+      <td>Wind Speed</td>
+      <td>{{ data.wind_speed_mph }} mph</td>
+    </tr>
+    <tr>
+      <td>Exposure Category</td>
+      <td>{{ data.exposure }}</td>
+    </tr>
+    <tr>
+      <td>Risk Category</td>
+      <td>{{ data.risk_category }}</td>
+    </tr>
+    <tr>
+      <td>Fence Height</td>
+      <td>{{ data.height_total_ft }} ft</td>
+    </tr>
+    <tr>
+      <td>Post Spacing</td>
+      <td>{{ data.post_spacing_ft }} ft</td>
+    </tr>
+    {% if data.estimator %}
+    <tr>
+      <td>Estimator</td>
+      <td>{{ data.estimator }}</td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
 
-    {% for opt in post_options %}
-    <option value="{{ opt.key }}"
-      {% if opt.key == current_line_post %}selected{% endif %}>
-      {{ opt.label }}
-    </option>
+<!-- ===== Line Post Results ===== -->
+<div class="card">
+  <div class="card-header">
+    <h2>
+      <span class="tag tag-line">Line</span>
+      Line Post
+    </h2>
+    <p>Intermediate posts along the fence run.</p>
+  </div>
+
+  <div class="post-block">
+    <table class="data-table">
+      <tr>
+        <td>Recommended Post</td>
+        <td>{{ result.line.recommended.post_label or result.line.recommended.post_key or "N/A" }}</td>
+      </tr>
+      {% if result.line.max_spacing_ft %}
+      <tr>
+        <td>Max Allowable Spacing</td>
+        <td>{{ "%.2f"|format(result.line.max_spacing_ft) }} ft</td>
+      </tr>
+      {% endif %}
+      {% if result.line.recommended.footing_diameter_in %}
+      <tr>
+        <td>Footing Diameter</td>
+        <td>{{ result.line.recommended.footing_diameter_in }}"</td>
+      </tr>
+      {% endif %}
+      {% if result.line.recommended.embedment_in %}
+      <tr>
+        <td>Embedment Depth</td>
+        <td>{{ result.line.recommended.embedment_in }}"</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <td>Status</td>
+        <td>
+          {% if result.line.status == "GREEN" %}
+          <span style="color: #1a7a35; font-weight: 600;">&#10004; OK</span>
+          {% elif result.line.status == "YELLOW" %}
+          <span style="color: #b07d00; font-weight: 600;">&#9888; Marginal</span>
+          {% else %}
+          <span style="color: var(--hfc-red); font-weight: 600;">&#10060; Exceeds</span>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+
+    {% if result.line.M_demand_ft_lb and result.line.M_allow_ft_lb %}
+    <details>
+      <summary>Bending Check (Advisory)</summary>
+      <div class="detail-content">
+        <p>
+          Simplified cantilever bending analysis:<br />
+          <b>M<sub>demand</sub></b> = {{ "%.1f"|format(result.line.M_demand_ft_lb) }} ft-lb
+          &nbsp;|&nbsp;
+          <b>M<sub>allow</sub></b> = {{ "%.1f"|format(result.line.M_allow_ft_lb) }} ft-lb
+          &nbsp;|&nbsp;
+          <b>Utilization</b>: {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
+        </p>
+        <p class="text-muted text-sm">
+          This is a conservative cantilever estimate for reference only.
+          Line post status is determined by the spacing table lookup.
+        </p>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+
+  {% if result.line.warnings %}
+  <ul class="warnings-list">
+    {% for w in result.line.warnings %}
+    <li>{{ w }}</li>
     {% endfor %}
-  </select>
+  </ul>
+  {% endif %}
+</div>
 
-  <label for="terminal_post_key">Terminal post type:</label>
-  <select id="terminal_post_key" name="terminal_post_key">
-    {% set current_terminal_post = data.terminal_post_key or "auto" %}
-    <option value="auto" {% if current_terminal_post == "auto" %}selected{% endif %}>
-      Auto (based on load)
-    </option>
+<!-- ===== Terminal Post Results ===== -->
+<div class="card">
+  <div class="card-header">
+    <h2>
+      <span class="tag tag-terminal">Terminal</span>
+      Terminal / End / Corner Post
+    </h2>
+    <p>End posts, gate posts, and corner posts.</p>
+  </div>
 
-    {% for opt in post_options %}
-    <option value="{{ opt.key }}"
-      {% if opt.key == current_terminal_post %}selected{% endif %}>
-      {{ opt.label }}
-    </option>
+  <div class="post-block">
+    <table class="data-table">
+      <tr>
+        <td>Recommended Post</td>
+        <td>{{ result.terminal.recommended.post_label or result.terminal.recommended.post_key or "N/A" }}</td>
+      </tr>
+      {% if result.terminal.max_spacing_ft %}
+      <tr>
+        <td>Max Allowable Spacing</td>
+        <td>{{ "%.2f"|format(result.terminal.max_spacing_ft) }} ft</td>
+      </tr>
+      {% endif %}
+      {% if result.terminal.recommended.footing_diameter_in %}
+      <tr>
+        <td>Footing Diameter</td>
+        <td>{{ result.terminal.recommended.footing_diameter_in }}"</td>
+      </tr>
+      {% endif %}
+      {% if result.terminal.recommended.embedment_in %}
+      <tr>
+        <td>Embedment Depth</td>
+        <td>{{ result.terminal.recommended.embedment_in }}"</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <td>Status</td>
+        <td>
+          {% if result.terminal.status == "GREEN" %}
+          <span style="color: #1a7a35; font-weight: 600;">&#10004; OK</span>
+          {% elif result.terminal.status == "YELLOW" %}
+          <span style="color: #b07d00; font-weight: 600;">&#9888; Marginal</span>
+          {% else %}
+          <span style="color: var(--hfc-red); font-weight: 600;">&#10060; Exceeds</span>
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+
+    {% if result.terminal.M_demand_ft_lb and result.terminal.M_allow_ft_lb %}
+    <details>
+      <summary>Bending Check</summary>
+      <div class="detail-content">
+        <p>
+          <b>M<sub>demand</sub></b> = {{ "%.1f"|format(result.terminal.M_demand_ft_lb) }} ft-lb
+          &nbsp;|&nbsp;
+          <b>M<sub>allow</sub></b> = {{ "%.1f"|format(result.terminal.M_allow_ft_lb) }} ft-lb
+          &nbsp;|&nbsp;
+          <b>Utilization</b>: {{ "%.0f"|format(result.terminal.M_demand_ft_lb / result.terminal.M_allow_ft_lb * 100) }}%
+        </p>
+        {% if not result.terminal.moment_ok %}
+        <p class="text-red text-sm">
+          Terminal post bending demand exceeds allowable capacity.
+          Consider upgrading to a heavier section.
+        </p>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+  </div>
+
+  {% if result.terminal.warnings %}
+  <ul class="warnings-list">
+    {% for w in result.terminal.warnings %}
+    <li>{{ w }}</li>
     {% endfor %}
-  </select>
-
-  <button type="submit">Recalculate</button>
-</form>
-
-<h3>Shared Results</h3>
-<ul>
-  <li>Pressure: {{ "%.2f"|format(result.shared.pressure_psf) }} psf</li>
-  <li>Area per bay: {{ "%.1f"|format(result.shared.area_per_bay_ft2) }} ft²</li>
-  <li>Total load per bay: {{ "%.0f"|format(result.shared.total_load_lb) }} lb</li>
-  <li>Load per post: {{ "%.0f"|format(result.shared.load_per_post_lb) }} lb</li>
-</ul>
-
-<h3>Line Results</h3>
-<ul>
-  <li>Post: {{ result.line.post_label or result.line.post_key or 'Auto' }}</li>
-  {% if result.line.max_spacing_ft %}
-  <li>Max spacing: {{ "%.2f"|format(result.line.max_spacing_ft) }} ft</li>
-  <li>Your spacing: {{ "%.2f"|format(data.post_spacing_ft) }} ft</li>
+  </ul>
   {% endif %}
-  <li>Bending: Bending check (conservative) available in Advanced.</li>
-</ul>
-{% if result.line.max_spacing_ft %}
-  {% set spacing_ratio = data.post_spacing_ft / result.line.max_spacing_ft %}
-  <p><strong>Line spacing ratio:</strong> {{ "%.1f"|format(spacing_ratio * 100) }}% ({{ "%.2f"|format(data.post_spacing_ft) }} / {{ "%.2f"|format(result.line.max_spacing_ft) }})</p>
-{% endif %}
-{% if result.line.M_demand_ft_lb is not none and result.line.M_allow_ft_lb is not none %}
-<details>
-  <summary>Advanced (line post)</summary>
-  <p>Advisory — Simplified cantilever bending check (conservative): {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
-     ({{ "%.1f"|format(result.line.M_demand_ft_lb) }} / {{ "%.1f"|format(result.line.M_allow_ft_lb) }} ft·lb)</p>
-</details>
+</div>
+
+<!-- ===== Risk Details (if any) ===== -->
+{% if risk_details and risk_details.reasons %}
+<div class="card">
+  <div class="card-header">
+    <h2>Assessment Details</h2>
+  </div>
+  <ul class="warnings-list">
+    {% for reason in risk_details.reasons %}
+    <li>{{ reason }}</li>
+    {% endfor %}
+  </ul>
+  {% if risk_details.advanced_reasons %}
+  <details>
+    <summary>Advanced Notes</summary>
+    <div class="detail-content">
+      <ul>
+        {% for ar in risk_details.advanced_reasons %}
+        <li>{{ ar }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </details>
+  {% endif %}
+</div>
 {% endif %}
 
-<h3>Terminal Results</h3>
-<ul>
-  <li>Post: {{ result.terminal.post_label or result.terminal.post_key or 'Auto' }}</li>
-  {% if result.terminal.recommended %}
-  <li>Footing: {{ result.terminal.recommended.footing_diameter_in or 'N/A' }} in dia × {{ result.terminal.recommended.embedment_in or 'N/A' }} in</li>
-  {% endif %}
-  {% if result.terminal.M_demand_ft_lb is not none and result.terminal.M_allow_ft_lb is not none %}
-  <li>Bending utilization: {{ "%.0f"|format(result.terminal.M_demand_ft_lb / result.terminal.M_allow_ft_lb * 100) }}%
-     ({{ "%.1f"|format(result.terminal.M_demand_ft_lb) }} / {{ "%.1f"|format(result.terminal.M_allow_ft_lb) }} ft·lb)</li>
-  {% endif %}
-</ul>
+<!-- ===== Assumptions ===== -->
+{% set all_assumptions = result.line.assumptions + result.terminal.assumptions %}
+{% if all_assumptions %}
+<div class="card">
+  <details>
+    <summary>Assumptions &amp; Notes</summary>
+    <div class="detail-content">
+      <ul>
+        {% for a in all_assumptions %}
+        <li>{{ a }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </details>
+</div>
+{% endif %}
 
-<h3>Overall Status: {{ result.overall_status }}</h3>
+<!-- ===== Download PDF ===== -->
+<div class="download-section">
+  <p>Generate a detailed PDF report with these results for your project file.</p>
+  <a
+    class="btn btn-primary btn-lg"
+    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&job_name={{ data.project_name or data.job_name or 'Job' }}&soil_type={{ data.soil_type or 'default' }}"
+  >
+    Download PDF Report
+  </a>
+</div>
+
+<!-- ===== Start Over ===== -->
+<div class="text-center mt-2">
+  <a href="/" class="btn btn-secondary">Start New Estimate</a>
+</div>
 
 {% endblock %}
