@@ -227,3 +227,24 @@ async def download(
 @router.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# Backward-compatible alias so that `uvicorn app.main:app` still works
+# (e.g. Render start command). Prefer `app.application:app` for new setups.
+def _lazy_app():
+    from app.application import app as _application
+
+    return _application
+
+
+class _AppProxy:
+    """Transparent proxy so uvicorn can import `app.main:app`."""
+
+    def __getattr__(self, name: str):  # type: ignore[override]
+        return getattr(_lazy_app(), name)
+
+    async def __call__(self, scope, receive, send):  # type: ignore[no-untyped-def]
+        await _lazy_app()(scope, receive, send)
+
+
+app = _AppProxy()
