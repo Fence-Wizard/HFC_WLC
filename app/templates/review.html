@@ -81,7 +81,20 @@
   </div>
 </div>
 
-<!-- ===== Post Recommendations (single clean card) ===== -->
+<!-- ===== Post Recommendations ===== -->
+{# Macro to render a utilization bar with CSS classes instead of inline colors #}
+{% macro util_bar(label, ratio) %}
+{% set pct = (ratio * 100)|int %}
+{% set cls = 'fail' if pct > 100 else ('warn' if pct > 85 else 'ok') %}
+<div class="utilization-bar-wrap">
+  <div class="utilization-label">{{ label }}</div>
+  <div class="utilization-bar">
+    <div class="utilization-fill fill-{{ cls }}" style="width: {{ [pct, 100]|min }}%;"></div>
+  </div>
+  <div class="utilization-pct color-{{ cls }}">{{ pct }}%</div>
+</div>
+{% endmacro %}
+
 <div class="card">
   <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
     <h2>Post Recommendations</h2>
@@ -111,26 +124,10 @@
           {% endif %}
         </div>
         {% if result.line.spacing_ratio is not none %}
-        <div class="utilization-bar-wrap">
-          <div class="utilization-label">Spacing</div>
-          <div class="utilization-bar">
-            {% set pct = (result.line.spacing_ratio * 100)|int %}
-            {% set bar_color = '#c62828' if pct > 100 else ('#f5a623' if pct > 85 else '#34c759') %}
-            <div class="utilization-fill" style="width: {{ [pct, 100]|min }}%; background: {{ bar_color }};"></div>
-          </div>
-          <div class="utilization-pct" style="color: {{ bar_color }};">{{ pct }}%</div>
-        </div>
+        {{ util_bar("Spacing", result.line.spacing_ratio) }}
         {% endif %}
         {% if result.line.moment_ratio is not none %}
-        <div class="utilization-bar-wrap">
-          <div class="utilization-label">Bending</div>
-          <div class="utilization-bar">
-            {% set mpct = (result.line.moment_ratio * 100)|int %}
-            {% set mbar = '#c62828' if mpct > 100 else ('#f5a623' if mpct > 85 else '#34c759') %}
-            <div class="utilization-fill" style="width: {{ [mpct, 100]|min }}%; background: {{ mbar }};"></div>
-          </div>
-          <div class="utilization-pct" style="color: {{ mbar }};">{{ mpct }}%</div>
-        </div>
+        {{ util_bar("Bending", result.line.moment_ratio) }}
         {% endif %}
         <div class="post-card-footing">
           {{ result.line.recommended.footing_diameter_in|int }}" dia &times; {{ result.line.recommended.embedment_in|int }}" deep
@@ -158,26 +155,10 @@
           {% endif %}
         </div>
         {% if result.terminal.spacing_ratio is not none %}
-        <div class="utilization-bar-wrap">
-          <div class="utilization-label">Spacing</div>
-          <div class="utilization-bar">
-            {% set tpct = (result.terminal.spacing_ratio * 100)|int %}
-            {% set tbar = '#c62828' if tpct > 100 else ('#f5a623' if tpct > 85 else '#34c759') %}
-            <div class="utilization-fill" style="width: {{ [tpct, 100]|min }}%; background: {{ tbar }};"></div>
-          </div>
-          <div class="utilization-pct" style="color: {{ tbar }};">{{ tpct }}%</div>
-        </div>
+        {{ util_bar("Spacing", result.terminal.spacing_ratio) }}
         {% endif %}
         {% if result.terminal.moment_ratio is not none %}
-        <div class="utilization-bar-wrap">
-          <div class="utilization-label">Bending</div>
-          <div class="utilization-bar">
-            {% set tmpct = (result.terminal.moment_ratio * 100)|int %}
-            {% set tmbar = '#c62828' if tmpct > 100 else ('#f5a623' if tmpct > 85 else '#34c759') %}
-            <div class="utilization-fill" style="width: {{ [tmpct, 100]|min }}%; background: {{ tmbar }};"></div>
-          </div>
-          <div class="utilization-pct" style="color: {{ tmbar }};">{{ tmpct }}%</div>
-        </div>
+        {{ util_bar("Bending", result.terminal.moment_ratio) }}
         {% endif %}
         <div class="post-card-footing">
           {{ result.terminal.recommended.footing_diameter_in|int }}" dia &times; {{ result.terminal.recommended.embedment_in|int }}" deep
@@ -186,7 +167,7 @@
     </div>
   </div>
 
-  <!-- Warnings (if any, collapsed inline) -->
+  <!-- Warnings -->
   {% set all_warnings = result.line.warnings + result.terminal.warnings %}
   {% if all_warnings %}
   <div style="margin-top: 1rem;">
@@ -197,7 +178,7 @@
   {% endif %}
 </div>
 
-<!-- ===== Quantities (compact) ===== -->
+<!-- ===== Quantities ===== -->
 {% if result.quantities %}
 <div class="card">
   <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
@@ -231,7 +212,7 @@
 </div>
 {% endif %}
 
-<!-- ===== Actions: Download + What-If ===== -->
+<!-- ===== Download ===== -->
 <div class="card" style="text-align: center;">
   <a
     class="btn btn-primary btn-lg"
@@ -243,12 +224,10 @@
   <p class="text-muted text-sm" style="margin: 0;">Detailed ASCE 7-22 report for your project file.</p>
 </div>
 
-<!-- ===== What-If Slider (compact) ===== -->
+<!-- ===== What-If ===== -->
 <div class="card">
   <details>
-    <summary style="font-size: 0.95rem; font-weight: 600; color: var(--hfc-blue-dark);">
-      Quick What-If
-    </summary>
+    <summary>Quick What-If</summary>
     <div class="detail-content" style="margin-top: 0.75rem;">
       <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
         <div style="flex: 1; min-width: 180px;">
@@ -264,7 +243,7 @@
                  oninput="document.getElementById('whatif_height_val').textContent = this.value; runWhatIf();" />
         </div>
       </div>
-      <div id="whatif_result" style="margin-top: 0.6rem; padding: 0.6rem 0.75rem; background: var(--hfc-bg); border-radius: 6px; display: none; font-size: 0.9rem;">
+      <div id="whatif_result" style="margin-top: 0.6rem; padding: 0.6rem 0.75rem; background: var(--hfc-surface); border-radius: 6px; display: none; font-size: 0.9rem;">
         <span id="wi_pressure">-</span> psf &nbsp;|&nbsp;
         <b id="wi_status" style="font-weight: 700;">-</b> &nbsp;|&nbsp;
         Bay: <span id="wi_load">-</span> lb &nbsp;|&nbsp;
@@ -274,16 +253,13 @@
   </details>
 </div>
 
-<!-- ===== Engineering Details (all collapsed) ===== -->
+<!-- ===== Engineering Details ===== -->
 <div class="card">
   <details>
-    <summary style="font-size: 0.95rem; font-weight: 600; color: var(--hfc-blue-dark);">
-      Engineering Details
-    </summary>
+    <summary>Engineering Details</summary>
     <div class="detail-content" style="margin-top: 0.75rem;">
 
-      <!-- Input summary -->
-      <h4 style="margin: 0.5rem 0; font-size: 0.88rem; color: var(--hfc-black);">Input Parameters</h4>
+      <h4 style="margin: 0.5rem 0; font-size: 0.88rem;">Input Parameters</h4>
       <table class="data-table" style="font-size: 0.85rem;">
         <tr><td>Wind Speed</td><td>{{ data.wind_speed_mph }} mph</td></tr>
         <tr><td>Exposure</td><td>{{ data.exposure }}</td></tr>
@@ -301,17 +277,16 @@
         {% if data.estimator %}<tr><td>Estimator</td><td>{{ data.estimator }}</td></tr>{% endif %}
       </table>
 
-      <!-- ASCE 7 breakdown -->
       {% if result.shared.design_params %}
       {% set dp = result.shared.design_params %}
-      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">ASCE 7-22 Calculation</h4>
-      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.4rem;">
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem;">ASCE 7-22 Calculation</h4>
+      <p class="text-sm" style="font-family: monospace; background: var(--hfc-surface); padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.4rem;">
         q<sub>z</sub> = 0.00256 &times; {{ "%.3f"|format(dp.kz) }}
         &times; {{ dp.kzt }} &times; {{ dp.kd }}
         &times; {{ data.wind_speed_mph }}&sup2;
         = <b>{{ "%.2f"|format(dp.qz_psf) }} psf</b>
       </p>
-      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.4rem 0.6rem; border-radius: 4px;">
+      <p class="text-sm" style="font-family: monospace; background: var(--hfc-surface); padding: 0.4rem 0.6rem; border-radius: 4px;">
         p = {{ "%.2f"|format(dp.qz_psf) }} &times; {{ dp.g }}
         &times; {{ "%.3f"|format(dp.cf) }}
         = <b>{{ "%.2f"|format(result.shared.pressure_psf) }} psf</b>
@@ -327,10 +302,9 @@
       </table>
       {% endif %}
 
-      <!-- Bending checks -->
       {% for rname, blk in [("Line", result.line), ("Terminal", result.terminal)] %}
       {% if blk.M_demand_ft_lb and blk.M_allow_ft_lb %}
-      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">{{ rname }} Bending Check</h4>
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem;">{{ rname }} Bending Check</h4>
       <table class="data-table" style="font-size: 0.82rem;">
         <tr><td>M<sub>demand</sub></td><td>{{ "%.1f"|format(blk.M_demand_ft_lb) }} ft-lb</td></tr>
         <tr><td>M<sub>allow</sub></td><td>{{ "%.1f"|format(blk.M_allow_ft_lb) }} ft-lb</td></tr>
@@ -339,10 +313,9 @@
       {% endif %}
       {% endfor %}
 
-      <!-- Footing checks -->
       {% for rname, blk in [("Line", result.line), ("Terminal", result.terminal)] %}
       {% if blk.footing %}
-      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">{{ rname }} Footing (IBC 1807.3)</h4>
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem;">{{ rname }} Footing (IBC 1807.3)</h4>
       <table class="data-table" style="font-size: 0.82rem;">
         <tr><td>Soil</td><td>{{ blk.footing.soil_label }}</td></tr>
         <tr><td>Embedment</td><td>{{ "%.1f"|format(blk.footing.actual_embedment_ft) }} ft</td></tr>
@@ -359,10 +332,9 @@
       {% endif %}
       {% endfor %}
 
-      <!-- Deflection checks -->
       {% for rname, blk in [("Line", result.line), ("Terminal", result.terminal)] %}
       {% if blk.deflection and blk.deflection.deflection_in > 0 %}
-      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">{{ rname }} Deflection (L/60)</h4>
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem;">{{ rname }} Deflection (L/60)</h4>
       <table class="data-table" style="font-size: 0.82rem;">
         <tr><td>Deflection</td><td>{{ "%.3f"|format(blk.deflection.deflection_in) }}"</td></tr>
         <tr><td>Allowable</td><td>{{ "%.3f"|format(blk.deflection.allowable_in) }}"</td></tr>
@@ -377,9 +349,8 @@
       {% endif %}
       {% endfor %}
 
-      <!-- Assumptions -->
       {% if result.line.assumptions %}
-      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">Assumptions</h4>
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem;">Assumptions</h4>
       <ul style="font-size: 0.82rem; padding-left: 1rem;">
         {% for a in result.line.assumptions %}
         <li style="margin-bottom: 0.3rem;">{{ a }}</li>
@@ -390,16 +361,14 @@
   </details>
 </div>
 
-<!-- ===== Saved Scenarios (compact) ===== -->
+<!-- ===== Saved Scenarios ===== -->
 <div class="card">
   <details>
-    <summary style="font-size: 0.95rem; font-weight: 600; color: var(--hfc-blue-dark);">
-      Save &amp; Compare Scenarios
-    </summary>
+    <summary>Save &amp; Compare Scenarios</summary>
     <div class="detail-content" style="margin-top: 0.75rem;">
       <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
         <input type="text" id="scenario_name" placeholder="Scenario name"
-               style="flex: 1; padding: 0.35rem 0.5rem; border: 1px solid var(--hfc-border, #d0d8de); border-radius: 4px; font-size: 0.88rem;" />
+               style="flex: 1; padding: 0.35rem 0.5rem; font-size: 0.88rem;" />
         <button type="button" class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.88rem;" onclick="saveScenario()">Save</button>
       </div>
       <div id="saved_scenarios_list" style="font-size: 0.85rem;"></div>
@@ -413,6 +382,9 @@
 </div>
 
 <script>
+function _themeColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 var _wiTimer = null;
 function runWhatIf() {
   clearTimeout(_wiTimer);
@@ -441,7 +413,7 @@ function runWhatIf() {
       document.getElementById('wi_perpost').textContent=d.shared.load_per_post_lb.toFixed(0);
       var st=d.overall_status, el=document.getElementById('wi_status');
       el.textContent=st;
-      el.style.color=st==='GREEN'?'#1a7a35':(st==='YELLOW'?'#b07d00':'#c62828');
+      el.style.color = st==='GREEN' ? _themeColor('--hfc-ok') : (st==='YELLOW' ? _themeColor('--hfc-warn') : _themeColor('--hfc-fail'));
     }).catch(function(){});
   }, 300);
 }
@@ -465,8 +437,8 @@ function renderSc(){
   if(!sc.length){el.innerHTML='<p class="text-muted" style="font-size:0.82rem;">No saved scenarios.</p>';return;}
   var h='<table class="data-table" style="font-size:0.82rem;"><tr><th style="text-align:left;">Name</th><th>Wind</th><th>Height</th><th>Pressure</th><th>Status</th><th></th></tr>';
   sc.forEach(function(s,i){
-    var c=s.d.st==='GREEN'?'#1a7a35':(s.d.st==='YELLOW'?'#b07d00':'#c62828');
-    h+='<tr><td style="text-align:left;">'+s.name+'</td><td>'+s.d.ws+'</td><td>'+s.d.h+'</td><td>'+s.d.p+'</td><td style="color:'+c+';font-weight:600;">'+s.d.st+'</td><td><button onclick="delSc('+i+')" style="border:none;background:none;color:var(--hfc-red);cursor:pointer;">&times;</button></td></tr>';
+    var cls=s.d.st==='GREEN'?'color-ok':(s.d.st==='YELLOW'?'color-warn':'color-fail');
+    h+='<tr><td style="text-align:left;">'+s.name+'</td><td>'+s.d.ws+'</td><td>'+s.d.h+'</td><td>'+s.d.p+'</td><td class="'+cls+'" style="font-weight:600;">'+s.d.st+'</td><td><button onclick="delSc('+i+')" style="border:none;background:none;color:var(--hfc-red);cursor:pointer;">&times;</button></td></tr>';
   });
   el.innerHTML=h+'</table>';
 }

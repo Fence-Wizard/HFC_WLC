@@ -11,6 +11,14 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function() {
+        var t = localStorage.getItem('hfc_theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <!-- Top nav bar -->
@@ -27,6 +35,16 @@
             <span class="topbar-title-sub">Estimation Tool</span>
           </div>
         </a>
+        <button
+          type="button"
+          class="theme-toggle"
+          id="themeToggle"
+          onclick="toggleTheme()"
+          aria-label="Toggle dark mode"
+        >
+          <span id="themeIcon">&#x1F319;</span>
+          <span class="toggle-label" id="themeLabel">Dark</span>
+        </button>
       </div>
     </header>
 
@@ -50,5 +68,28 @@
         </p>
       </div>
     </footer>
+
+    <script>
+      function toggleTheme() {
+        var html = document.documentElement;
+        var isDark = html.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+          html.removeAttribute('data-theme');
+          localStorage.setItem('hfc_theme', 'light');
+        } else {
+          html.setAttribute('data-theme', 'dark');
+          localStorage.setItem('hfc_theme', 'dark');
+        }
+        updateToggleUI();
+      }
+      function updateToggleUI() {
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var icon = document.getElementById('themeIcon');
+        var label = document.getElementById('themeLabel');
+        if (icon) icon.innerHTML = isDark ? '&#x2600;&#xFE0F;' : '&#x1F319;';
+        if (label) label.textContent = isDark ? 'Light' : 'Dark';
+      }
+      updateToggleUI();
+    </script>
   </body>
 </html>
