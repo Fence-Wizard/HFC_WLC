@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 
 # Legacy schemas retained for backward compatibility with the JSON API.
@@ -72,17 +72,28 @@ class EstimateInput(BaseModel):
     post_spacing_ft: float = Field(
         ..., gt=0, le=30, description="Spacing between posts in feet"
     )
-    exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
+    fence_length_ft: float | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Total fence run length in feet (optional). "
+            "Used to compute B/s aspect ratio for Cf lookup. "
+            "If omitted, B/s >= 20 (long run) is assumed."
+        ),
+    )
+    exposure: Literal["B", "C", "D"] = Field(
+        default="C", description="Exposure category (B, C, or D)"
+    )
     fence_type: str = Field(
         default="chain_link_open",
         description="Fence type key (determines solidity ratio and Cf)",
     )
-    risk_category: str = Field(
+    risk_category: Literal["I", "II", "III", "IV"] = Field(
         default="III",
-        description="Risk category (I or III) for documentation/validation",
+        description="Risk category (I-IV) per ASCE 7-22 Table 1.5-1",
     )
     soil_type: str | None = Field(None, description="Optional soil descriptor")
-    # New dual post selections
+    # Dual post selections
     line_post_key: str | None = Field(
         None, description="Optional line post key override (e.g., '2_3_8_SS40')"
     )
@@ -102,11 +113,24 @@ class EstimateInput(BaseModel):
         description="Legacy post size override string (e.g., '2-3/8\" SS40'); prefer post_key",
     )
 
+    @field_validator("exposure", mode="before")
+    @classmethod
+    def _normalize_exposure(cls, v: str) -> str:
+        return v.upper() if isinstance(v, str) else v
+
     @computed_field
     @property
     def area_per_bay_ft2(self) -> float:
         """Calculated tributary area for a single bay."""
         return self.height_total_ft * self.post_spacing_ft
+
+    @computed_field
+    @property
+    def aspect_ratio_bs(self) -> float | None:
+        """B/s aspect ratio (fence length / height), or None if length unknown."""
+        if self.fence_length_ft and self.height_total_ft > 0:
+            return self.fence_length_ft / self.height_total_ft
+        return None
 
 
 class DesignParameters(BaseModel):
@@ -148,7 +172,13 @@ class BlockResult(BaseModel):
     M_demand_ft_lb: float | None = None
     M_allow_ft_lb: float | None = None
     moment_ok: bool | None = None
-    status: str = "GREEN"
+    spacing_ratio: float | None = Field(
+        None, description="Requested spacing / max spacing (>1.0 = over limit)"
+    )
+    moment_ratio: float | None = Field(
+        None, description="M_demand / M_allow (>1.0 = over capacity)"
+    )
+    status: Literal["GREEN", "YELLOW", "RED"] = "GREEN"
 
 
 class EstimateOutput(BaseModel):

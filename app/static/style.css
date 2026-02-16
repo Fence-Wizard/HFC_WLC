@@ -794,3 +794,26 @@ details .detail-content {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Utilization indicators ─────────────────────────────────────────── */
+.utilization-green {
+  color: #1a7a35;
+  font-weight: 600;
+}
+.utilization-yellow {
+  color: #b07d00;
+  font-weight: 600;
+}
+.utilization-red {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+/* ── Form validation errors ─────────────────────────────────────────── */
+.form-error {
+  display: block;
+  color: #c0392b;
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
+  min-height: 1em;
+}

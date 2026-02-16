@@ -29,7 +29,7 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" action="/step3">
+<form method="post" action="/step3" id="step2Form" novalidate>
   <!-- Carry forward step 1 data -->
   <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
   <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
@@ -39,11 +39,11 @@
   <div class="card">
     <div class="card-header">
       <h2>Step 2 - Fence Geometry</h2>
-      <p>Define the fence height and post spacing for this section.</p>
+      <p>Define the fence dimensions and post configuration for this section.</p>
     </div>
 
     <div class="form-group">
-      <label for="height_total_ft">Total Fence Height (ft)</label>
+      <label for="height_total_ft">Total Fence Height (ft) *</label>
       <input
         type="number"
         id="height_total_ft"
@@ -58,10 +58,11 @@
       <span class="form-hint">
         Top of fabric to ground line, in feet.
       </span>
+      <span class="form-error" id="err_height"></span>
     </div>
 
     <div class="form-group">
-      <label for="post_spacing_ft">Post Spacing (ft)</label>
+      <label for="post_spacing_ft">Post Spacing (ft) *</label>
       <input
         type="number"
         id="post_spacing_ft"
@@ -75,6 +76,25 @@
       />
       <span class="form-hint">
         On-center distance between posts. Common: 8 ft or 10 ft.
+      </span>
+      <span class="form-error" id="err_spacing"></span>
+    </div>
+
+    <div class="form-group">
+      <label for="fence_length_ft">Fence Run Length (ft)</label>
+      <input
+        type="number"
+        id="fence_length_ft"
+        name="fence_length_ft"
+        step="1"
+        min="1"
+        max="10000"
+        value="{{ data.fence_length_ft or '' }}"
+        placeholder="e.g. 200 (optional)"
+      />
+      <span class="form-hint">
+        Total length of this fence run. Used to compute B/s aspect ratio
+        for the force coefficient (Cf). Leave blank for long runs (&ge; 20x height).
       </span>
     </div>
 
@@ -95,21 +115,40 @@
     </div>
 
     <div class="form-group">
-      <label for="post_key">Post Type (ASTM F1083 Group IC)</label>
-      <select id="post_key" name="post_key">
-        <option value="auto" {% if not data.post_key or data.post_key=='auto' %}selected{% endif %}>
+      <label for="line_post_key">Line Post (ASTM F1083 Group IC)</label>
+      <select id="line_post_key" name="line_post_key">
+        <option value="auto" {% if not data.line_post_key or data.line_post_key=='auto' %}selected{% endif %}>
           Auto - select by bending capacity
         </option>
         {% for opt in post_options %}
         <option
           value="{{ opt.key }}"
-          {% if data.post_key==opt.key %}selected{% endif %}
+          {% if data.line_post_key==opt.key %}selected{% endif %}
         >{{ opt.label }}</option>
         {% endfor %}
       </select>
       <span class="form-hint">
-        Commercial chain-link pipe per ASTM F1083 Group IC (Fy = 50 ksi).
-        "Auto" selects the lightest pipe with adequate bending capacity.
+        Intermediate posts along the fence run. "Auto" picks the lightest
+        adequate pipe.
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label for="terminal_post_key">Terminal / Corner / Gate Post</label>
+      <select id="terminal_post_key" name="terminal_post_key">
+        <option value="auto" {% if not data.terminal_post_key or data.terminal_post_key=='auto' %}selected{% endif %}>
+          Auto - select by bending capacity
+        </option>
+        {% for opt in post_options %}
+        <option
+          value="{{ opt.key }}"
+          {% if data.terminal_post_key==opt.key %}selected{% endif %}
+        >{{ opt.label }}</option>
+        {% endfor %}
+      </select>
+      <span class="form-hint">
+        End posts, corner posts, and gate posts (cantilever model).
+        Typically one or two sizes larger than the line post.
       </span>
     </div>
 
@@ -134,4 +173,48 @@
     </div>
   </div>
 </form>
+
+<script>
+// Client-side validation
+document.getElementById('step2Form').addEventListener('submit', function(e) {
+  let valid = true;
+  const height = document.getElementById('height_total_ft');
+  const spacing = document.getElementById('post_spacing_ft');
+  const errH = document.getElementById('err_height');
+  const errS = document.getElementById('err_spacing');
+  errH.textContent = '';
+  errS.textContent = '';
+
+  const hVal = parseFloat(height.value);
+  if (isNaN(hVal) || hVal < 3 || hVal > 50) {
+    errH.textContent = 'Height must be between 3 and 50 ft.';
+    valid = false;
+  }
+  const sVal = parseFloat(spacing.value);
+  if (isNaN(sVal) || sVal < 1 || sVal > 30) {
+    errS.textContent = 'Spacing must be between 1 and 30 ft.';
+    valid = false;
+  }
+  if (!valid) e.preventDefault();
+});
+
+// Persist form state in sessionStorage
+(function() {
+  const form = document.getElementById('step2Form');
+  const fields = ['height_total_ft','post_spacing_ft','fence_length_ft',
+                  'fence_type','line_post_key','terminal_post_key'];
+  fields.forEach(function(f) {
+    const el = document.getElementById(f);
+    if (!el) return;
+    const saved = sessionStorage.getItem('step2_' + f);
+    if (saved && !el.value) el.value = saved;
+    el.addEventListener('change', function() {
+      sessionStorage.setItem('step2_' + f, el.value);
+    });
+    el.addEventListener('input', function() {
+      sessionStorage.setItem('step2_' + f, el.value);
+    });
+  });
+})();
+</script>
 {% endblock %}

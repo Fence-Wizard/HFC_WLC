@@ -102,8 +102,11 @@ async def step3(
     exposure: str = Form(...),
     height_total_ft: float = Form(...),
     post_spacing_ft: float = Form(...),
-    post_key: str = Form("auto"),
+    fence_length_ft: str = Form(""),
     fence_type: str = Form("chain_link_open"),
+    line_post_key: str = Form("auto"),
+    terminal_post_key: str = Form("auto"),
+    post_key: str = Form("auto"),
 ):
     data = {
         "zip_code": zip_code,
@@ -112,8 +115,11 @@ async def step3(
         "exposure": exposure,
         "height_total_ft": height_total_ft,
         "post_spacing_ft": post_spacing_ft,
-        "post_key": post_key,
+        "fence_length_ft": fence_length_ft if fence_length_ft else "",
         "fence_type": fence_type,
+        "line_post_key": line_post_key or "auto",
+        "terminal_post_key": terminal_post_key or "auto",
+        "post_key": post_key,
     }
     return templates.TemplateResponse(
         request,
@@ -131,6 +137,7 @@ async def review(
     exposure: str = Form(...),
     height_total_ft: float = Form(...),
     post_spacing_ft: float = Form(...),
+    fence_length_ft: str = Form(""),
     soil_type: str = Form("default"),
     fence_type: str = Form("chain_link_open"),
     job_name: str = Form(""),
@@ -144,6 +151,14 @@ async def review(
     post_key: str = Form(""),  # deprecated
     post_size: str = Form(""),  # legacy
 ):
+    # Parse optional fence length
+    _fence_length: float | None = None
+    if fence_length_ft and fence_length_ft.strip():
+        try:
+            _fence_length = float(fence_length_ft)
+        except ValueError:
+            _fence_length = None
+
     data = {
         "zip_code": zip_code,
         "risk_category": risk_category,
@@ -151,6 +166,7 @@ async def review(
         "exposure": exposure,
         "height_total_ft": height_total_ft,
         "post_spacing_ft": post_spacing_ft,
+        "fence_length_ft": fence_length_ft or "",
         "soil_type": soil_type,
         "fence_type": fence_type,
         "job_name": job_name or project_name,
@@ -169,6 +185,7 @@ async def review(
         wind_speed_mph=wind_speed_mph,
         height_total_ft=height_total_ft,
         post_spacing_ft=post_spacing_ft,
+        fence_length_ft=_fence_length,
         exposure=exposure,
         fence_type=fence_type,
         risk_category=risk_category,
@@ -208,19 +225,31 @@ async def download(
     exposure: str,
     height_total_ft: float,
     post_spacing_ft: float,
+    fence_length_ft: str = "",
     soil_type: str = "default",
     fence_type: str = "chain_link_open",
     job_name: str = "Job",
+    project_name: str = "",
+    location: str = "",
+    estimator: str = "",
     line_post_key: str = "",
     terminal_post_key: str = "",
-    post_role: str = "line",  # deprecated
-    post_key: str = "",  # deprecated
-    post_size: str = "",  # legacy; ignored for selection
+    post_role: str = "line",
+    post_key: str = "",
+    post_size: str = "",
 ):
+    _fence_length: float | None = None
+    if fence_length_ft and fence_length_ft.strip():
+        try:
+            _fence_length = float(fence_length_ft)
+        except ValueError:
+            _fence_length = None
+
     inp = EstimateInput(
         wind_speed_mph=wind_speed_mph,
         height_total_ft=height_total_ft,
         post_spacing_ft=post_spacing_ft,
+        fence_length_ft=_fence_length,
         exposure=exposure,
         fence_type=fence_type,
         risk_category=risk_category,
@@ -238,17 +267,24 @@ async def download(
     filename = f"{safe_job}_{ts}.pdf"
     pdf_path = REPORT_DIR / filename
 
-    # Calculate risk for PDF
     risk, risk_details = classify_risk(out, {
         "post_spacing_ft": post_spacing_ft,
         "line_post_key": line_post_key or "",
         "terminal_post_key": terminal_post_key or "",
-        "post_role": post_role or "line",
-        "post_key": post_key or "",
-        "post_size": post_size or "",
     })
 
-    draw_pdf(pdf_path, inp, out, risk_status=risk, risk_details=risk_details)
+    draw_pdf(
+        pdf_path,
+        inp,
+        out,
+        risk_status=risk,
+        risk_details=risk_details,
+        project_meta={
+            "project_name": project_name or job_name or "",
+            "location": location,
+            "estimator": estimator,
+        },
+    )
 
     return FileResponse(
         path=pdf_path,

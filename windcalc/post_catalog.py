@@ -467,6 +467,11 @@ def compute_max_spacing_from_tables(
     return spacing
 
 
+def get_pipe_post_keys() -> list[str]:
+    """Return catalog keys for pipe posts only (IC_PIPE group), ordered by size."""
+    return [k for k, p in POST_TYPES.items() if p.group == "IC_PIPE"]
+
+
 __all__ = [
     "CF1_TABLE",
     "DEFAULT_CF3",
@@ -479,6 +484,7 @@ __all__ = [
     "compute_max_spacing_from_tables",
     "compute_moment_check",
     "get_cf1",
+    "get_pipe_post_keys",
     "section_modulus_pipe",
 ]
 

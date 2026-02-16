@@ -179,4 +179,23 @@
     </div>
   </div>
 </form>
+
+<script>
+// Persist form state in sessionStorage
+(function() {
+  var fields = ['zip_code','risk_category','wind_speed_mph','exposure'];
+  fields.forEach(function(f) {
+    var el = document.getElementById(f);
+    if (!el) return;
+    var saved = sessionStorage.getItem('step1_' + f);
+    if (saved && !el.value) el.value = saved;
+    el.addEventListener('change', function() {
+      sessionStorage.setItem('step1_' + f, el.value);
+    });
+    el.addEventListener('input', function() {
+      sessionStorage.setItem('step1_' + f, el.value);
+    });
+  });
+})();
+</script>
 {% endblock %}

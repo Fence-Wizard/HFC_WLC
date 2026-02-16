@@ -6,11 +6,12 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from windcalc.engine import calculate_wind_load
-from windcalc.schemas import WindLoadRequest, WindLoadResult
+from windcalc.engine import calculate, calculate_wind_load
+from windcalc.schemas import EstimateInput, EstimateOutput, WindLoadRequest, WindLoadResult
 
 logger = logging.getLogger(__name__)
 
+# ── Legacy API (backward compatible) ─────────────────────────────────
 router = APIRouter(prefix="/api", tags=["api"])
 
 
@@ -19,8 +20,12 @@ async def api_root():
     """API root endpoint."""
     return {
         "message": "Windcalc API",
-        "version": "0.1.0",
-        "endpoints": ["/api/calculate", "/api/health", "/api/projects"],
+        "version": "0.2.0",
+        "endpoints": [
+            "/api/calculate",
+            "/api/health",
+            "/api/v1/estimate",
+        ],
     }
 
 
@@ -31,18 +36,11 @@ async def api_health():
 
 
 @router.post("/calculate", response_model=WindLoadResult)
-async def calculate(request: WindLoadRequest):
-    """
-    Calculate wind load for fence project.
+async def legacy_calculate(request: WindLoadRequest):
+    """Calculate wind load (legacy endpoint).
 
-    Args:
-        request: WindLoadRequest with fence specs and wind conditions
-
-    Returns:
-        WindLoadResult with calculated wind loads
-
-    Raises:
-        HTTPException: 400 for calculation errors
+    .. deprecated:: 0.2.0
+        Use ``POST /api/v1/estimate`` with :class:`EstimateInput` instead.
     """
     try:
         result = calculate_wind_load(request)
@@ -57,12 +55,68 @@ async def calculate(request: WindLoadRequest):
         ) from None
 
 
-@router.get("/projects")
-async def list_projects():
-    """
-    List saved projects (placeholder).
+# ── Modern API v1 ────────────────────────────────────────────────────
+v1_router = APIRouter(prefix="/api/v1", tags=["api-v1"])
 
-    Returns:
-        List of saved projects
+
+@v1_router.post("/estimate", response_model=EstimateOutput)
+async def estimate(request: EstimateInput):
+    """Calculate ASCE 7-22 wind load estimate for a fence bay.
+
+    Accepts full :class:`EstimateInput` with dual line/terminal post
+    selection, fence type, exposure, and optional fence run length
+    for B/s aspect ratio.
+
+    Returns :class:`EstimateOutput` with pressure, loads, bending checks,
+    spacing checks, utilization ratios, and status (GREEN/YELLOW/RED).
     """
-    return {"projects": []}
+    try:
+        result = calculate(request)
+        return result
+    except ValueError as e:
+        logger.warning("Estimate error: %s", e)
+        raise HTTPException(status_code=400, detail=f"Estimate error: {e!s}") from e
+    except Exception:
+        logger.exception("Unexpected error during estimate")
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred"
+        ) from None
+
+
+@v1_router.get("/fence-types")
+async def list_fence_types():
+    """List available fence types with solidity ratios."""
+    from windcalc.asce7 import FENCE_TYPES
+
+    return {
+        "fence_types": [
+            {
+                "key": ft.key,
+                "label": ft.label,
+                "solidity": ft.solidity,
+                "description": ft.description,
+            }
+            for ft in FENCE_TYPES.values()
+        ]
+    }
+
+
+@v1_router.get("/post-types")
+async def list_post_types():
+    """List available post types with section properties."""
+    from windcalc.post_catalog import POST_TYPES
+
+    return {
+        "post_types": [
+            {
+                "key": p.key,
+                "label": p.label,
+                "group": p.group,
+                "od_in": p.od_in,
+                "wall_in": p.wall_in,
+                "fy_ksi": p.fy_ksi,
+            }
+            for p in POST_TYPES.values()
+            if p.group == "IC_PIPE"
+        ]
+    }

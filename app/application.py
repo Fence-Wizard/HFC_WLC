@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.main import STATIC_DIR
 from app.main import router as wizard_router
 from windcalc.api import router as api_router
+from windcalc.api import v1_router as api_v1_router
 from windcalc.settings import get_settings
 
 logging.basicConfig(
@@ -46,8 +47,9 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Mount routers
-app.include_router(api_router)     # /api/calculate, /api/health, /api/projects
-app.include_router(wizard_router)  # /, /step2, /step3, /review, /download, /health
+app.include_router(api_router)      # /api/calculate, /api/health (legacy)
+app.include_router(api_v1_router)   # /api/v1/estimate, /api/v1/fence-types, /api/v1/post-types
+app.include_router(wizard_router)   # /, /step2, /step3, /review, /download, /health
 
 
 if __name__ == "__main__":

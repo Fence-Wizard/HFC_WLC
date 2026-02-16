@@ -122,6 +122,16 @@
       <td>{{ data.fence_type | replace("_", " ") | title }}</td>
     </tr>
     {% endif %}
+    {% if data.fence_length_ft %}
+    <tr>
+      <td>Fence Run Length</td>
+      <td>{{ data.fence_length_ft }} ft
+        {% if result.shared.design_params %}
+        (B/s = {{ "%.1f"|format(data.fence_length_ft|float / data.height_total_ft|float) }})
+        {% endif %}
+      </td>
+    </tr>
+    {% endif %}
     {% if data.estimator %}
     <tr>
       <td>Estimator</td>
@@ -231,6 +241,22 @@
         <td>{{ "%.2f"|format(result.line.max_spacing_ft) }} ft</td>
       </tr>
       {% endif %}
+      {% if result.line.spacing_ratio is not none %}
+      <tr>
+        <td>Spacing Utilization</td>
+        <td>
+          <span class="utilization-{{ 'red' if result.line.spacing_ratio > 1.0 else ('yellow' if result.line.spacing_ratio > 0.85 else 'green') }}">
+            {{ "%.0f"|format(result.line.spacing_ratio * 100) }}%
+          </span>
+        </td>
+      </tr>
+      {% endif %}
+      {% if result.line.moment_ratio is not none %}
+      <tr>
+        <td>Bending Utilization (Advisory)</td>
+        <td>{{ "%.0f"|format(result.line.moment_ratio * 100) }}%</td>
+      </tr>
+      {% endif %}
       {% if result.line.recommended.footing_diameter_in %}
       <tr>
         <td>Footing Diameter</td>
@@ -309,6 +335,26 @@
       <tr>
         <td>Max Allowable Spacing</td>
         <td>{{ "%.2f"|format(result.terminal.max_spacing_ft) }} ft</td>
+      </tr>
+      {% endif %}
+      {% if result.terminal.spacing_ratio is not none %}
+      <tr>
+        <td>Spacing Utilization</td>
+        <td>
+          <span class="utilization-{{ 'red' if result.terminal.spacing_ratio > 1.0 else ('yellow' if result.terminal.spacing_ratio > 0.85 else 'green') }}">
+            {{ "%.0f"|format(result.terminal.spacing_ratio * 100) }}%
+          </span>
+        </td>
+      </tr>
+      {% endif %}
+      {% if result.terminal.moment_ratio is not none %}
+      <tr>
+        <td>Bending Utilization</td>
+        <td>
+          <span class="utilization-{{ 'red' if result.terminal.moment_ratio > 1.0 else ('yellow' if result.terminal.moment_ratio > 0.80 else 'green') }}">
+            {{ "%.0f"|format(result.terminal.moment_ratio * 100) }}%
+          </span>
+        </td>
       </tr>
       {% endif %}
       {% if result.terminal.recommended.footing_diameter_in %}
@@ -419,7 +465,7 @@
   <p>Generate a detailed PDF report with these results for your project file.</p>
   <a
     class="btn btn-primary btn-lg"
-    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&job_name={{ data.project_name or data.job_name or 'Job' }}&soil_type={{ data.soil_type or 'default' }}&fence_type={{ data.fence_type or 'chain_link_open' }}"
+    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&fence_length_ft={{ data.fence_length_ft or '' }}&job_name={{ data.project_name or data.job_name or 'Job' }}&project_name={{ data.project_name or '' }}&location={{ data.location or '' }}&estimator={{ data.estimator or '' }}&soil_type={{ data.soil_type or 'default' }}&fence_type={{ data.fence_type or 'chain_link_open' }}&line_post_key={{ data.line_post_key or '' }}&terminal_post_key={{ data.terminal_post_key or '' }}"
   >
     Download PDF Report
   </a>

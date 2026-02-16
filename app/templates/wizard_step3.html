@@ -29,7 +29,7 @@
 {% endblock %}
 
 {% block content %}
-<form method="post" action="/review">
+<form method="post" action="/review" id="step3Form">
   <!-- Carry forward all previous data -->
   <input type="hidden" name="zip_code" value="{{ data.zip_code }}" />
   <input type="hidden" name="risk_category" value="{{ data.risk_category }}" />
@@ -37,8 +37,10 @@
   <input type="hidden" name="exposure" value="{{ data.exposure }}" />
   <input type="hidden" name="height_total_ft" value="{{ data.height_total_ft }}" />
   <input type="hidden" name="post_spacing_ft" value="{{ data.post_spacing_ft }}" />
-  <input type="hidden" name="post_key" value="{{ data.post_key }}" />
+  <input type="hidden" name="fence_length_ft" value="{{ data.fence_length_ft or '' }}" />
   <input type="hidden" name="fence_type" value="{{ data.fence_type }}" />
+  <input type="hidden" name="line_post_key" value="{{ data.line_post_key or 'auto' }}" />
+  <input type="hidden" name="terminal_post_key" value="{{ data.terminal_post_key or 'auto' }}" />
 
   <div class="card">
     <div class="card-header">
@@ -107,4 +109,23 @@
     </div>
   </div>
 </form>
+
+<script>
+// Persist job info fields in sessionStorage
+(function() {
+  var fields = ['project_name','location','estimator','notes'];
+  fields.forEach(function(f) {
+    var el = document.getElementById(f);
+    if (!el) return;
+    var saved = sessionStorage.getItem('step3_' + f);
+    if (saved && !el.value) el.value = saved;
+    el.addEventListener('change', function() {
+      sessionStorage.setItem('step3_' + f, el.value);
+    });
+    el.addEventListener('input', function() {
+      sessionStorage.setItem('step3_' + f, el.value);
+    });
+  });
+})();
+</script>
 {% endblock %}

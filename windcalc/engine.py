@@ -272,15 +272,36 @@ def _compute_block(
             load_per_post_lb=load_per_post_lb,
         )
 
-    # Status logic
-    status = "GREEN"
-    if max_spacing_ft is not None and data.post_spacing_ft > max_spacing_ft:
-        status = "RED"
-    if role == "terminal" and moment_ok is False:
-        status = "RED"
-        warnings_list.append(
-            "Terminal bending exceeds capacity; increase post size or adjust configuration."
-        )
+    # Compute utilization ratios
+    spacing_ratio: float | None = None
+    moment_ratio: float | None = None
+
+    if max_spacing_ft is not None and max_spacing_ft > 0:
+        spacing_ratio = round(data.post_spacing_ft / max_spacing_ft, 3)
+
+    if M_demand_lb_in is not None and M_allow_lb_in is not None and M_allow_lb_in > 0:
+        moment_ratio = round(M_demand_lb_in / M_allow_lb_in, 3)
+
+    # Status logic with YELLOW band
+    status: str = "GREEN"
+
+    # Spacing check
+    if spacing_ratio is not None:
+        if spacing_ratio > 1.0:
+            status = "RED"
+        elif spacing_ratio > 0.85:
+            status = "YELLOW"
+
+    # Terminal bending check (overrides spacing if worse)
+    if role == "terminal" and moment_ratio is not None:
+        if moment_ratio > 1.0:
+            status = "RED"
+            warnings_list.append(
+                "Terminal bending exceeds capacity; "
+                "increase post size or reduce spacing."
+            )
+        elif moment_ratio > 0.80 and status != "RED":
+            status = "YELLOW"
 
     return BlockResult(
         post_key=effective_key,
@@ -292,6 +313,8 @@ def _compute_block(
         M_demand_ft_lb=round(M_demand_lb_in / 12.0, 1) if M_demand_lb_in is not None else None,
         M_allow_ft_lb=round(M_allow_lb_in / 12.0, 1) if M_allow_lb_in is not None else None,
         moment_ok=moment_ok,
+        spacing_ratio=spacing_ratio,
+        moment_ratio=moment_ratio,
         status=status,
     )
 
@@ -305,6 +328,9 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     fence_info = ASCE_FENCE_TYPES.get(data.fence_type)
     solidity = fence_info.solidity if fence_info else 1.0
 
+    # Compute B/s aspect ratio for Cf lookup (None = long run assumed)
+    aspect_ratio_bs = data.aspect_ratio_bs
+
     # ASCE 7-22 design pressure
     dp = compute_design_pressure(
         wind_speed_mph=data.wind_speed_mph,
@@ -312,6 +338,7 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         exposure=data.exposure,
         solidity=solidity,
         fence_type=data.fence_type,
+        aspect_ratio_bs=aspect_ratio_bs,
     )
     pressure_psf = dp.design_pressure_psf
 
@@ -453,13 +480,24 @@ def _assumptions(data: EstimateInput) -> list[str]:
     solidity = fence_info.solidity if fence_info else 1.0
     fence_label = fence_info.label if fence_info else data.fence_type
 
+    aspect_ratio_bs = data.aspect_ratio_bs
     dp = compute_design_pressure(
         wind_speed_mph=data.wind_speed_mph,
         height_ft=data.height_total_ft,
         exposure=data.exposure,
         solidity=solidity,
         fence_type=data.fence_type,
+        aspect_ratio_bs=aspect_ratio_bs,
     )
+
+    bs_note = (
+        f"B/s = {aspect_ratio_bs:.1f} "
+        f"(fence length {data.fence_length_ft:.0f} ft / "
+        f"height {data.height_total_ft} ft)"
+        if aspect_ratio_bs is not None
+        else "B/s >= 20 assumed (long run; fence length not specified)"
+    )
+
     assumptions = [
         f"Design wind speed V = {data.wind_speed_mph} mph "
         f"(3-sec gust at 33 ft) for Risk Category {data.risk_category}, "
@@ -472,7 +510,7 @@ def _assumptions(data: EstimateInput) -> list[str]:
         f"Kzt = {dp.kzt} (flat terrain assumed).",
         f"G = {dp.g} (rigid structure gust-effect factor, Section 26.11).",
         f"Cf = {dp.cf:.3f} ({fence_label}, "
-        f"solidity = {solidity:.2f}, B/s >= 20 assumed, "
+        f"solidity = {solidity:.2f}, {bs_note}, "
         "Figure 29.3-1).",
         "Uniform pressure distribution assumed across the bay.",
         "Post tributary load = total bay load / 2.",
@@ -483,6 +521,8 @@ def _assumptions(data: EstimateInput) -> list[str]:
         "Fy = 50 ksi.",
         "Terminal posts modeled as cantilevers fixed at grade; "
         "line posts restrained by top rail and fabric (advisory check).",
+        "Status: GREEN (<85% utilization), "
+        "YELLOW (85-100%), RED (>100%).",
     ]
     return assumptions
 
