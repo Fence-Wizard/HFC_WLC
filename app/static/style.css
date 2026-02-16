@@ -1216,6 +1216,13 @@ details .detail-content {
 .color-warn { color: var(--hfc-warn); }
 .color-fail { color: var(--hfc-fail); }
 
+/* ── Post selector optgroups ─────────────────────────────────────── */
+select optgroup {
+  font-weight: 600;
+  color: var(--hfc-text-secondary);
+  font-style: normal;
+}
+
 /* ── Smooth transitions for theme change ─────────────────────────── */
 .card,
 .progress-bar,

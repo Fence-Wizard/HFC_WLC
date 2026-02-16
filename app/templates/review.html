@@ -83,7 +83,7 @@
 
 <!-- ===== Post Recommendations ===== -->
 {# Macro to render a utilization bar with CSS classes instead of inline colors #}
-{% macro util_bar(label, ratio) %}
+{% macro util_bar(label, ratio, id_prefix="") %}
 {% set pct = (ratio * 100)|int %}
 {% set cls = 'fail' if pct > 100 else ('warn' if pct > 85 else 'ok') %}
 <div class="utilization-bar-wrap">
@@ -95,7 +95,7 @@
 </div>
 {% endmacro %}
 
-<div class="card">
+<div class="card" id="post-rec-card">
   <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
     <h2>Post Recommendations</h2>
     {% if data.project_name %}
@@ -103,22 +103,65 @@
     {% endif %}
   </div>
 
+  <!-- Post type selectors -->
+  <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+    <div style="flex: 1; min-width: 180px;">
+      <label class="text-sm" style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Line Post</label>
+      <select id="sel_line_post" onchange="reCalcPosts()" style="font-size: 0.85rem;">
+        <option value="auto">Auto (recommended)</option>
+        {% for g_label, g_keys in [
+          ("SS20 (Sch 20, Fy=30 ksi)", ["1_5_8_SS20","1_7_8_SS20","2_3_8_SS20","2_7_8_SS20","3_1_2_SS20","4_0_SS20"]),
+          ("SS40 (Sch 40, Fy=50 ksi)", ["1_7_8_PIPE","2_3_8_SS40","2_7_8_SS40","3_1_2_SS40","4_0_PIPE","6_5_8_PIPE","8_5_8_PIPE"]),
+          ("Sch 80 (Fy=50 ksi)", ["2_3_8_S80","2_7_8_S80","3_1_2_S80","4_0_S80"])
+        ] %}
+        <optgroup label="{{ g_label }}">
+          {% for pk in g_keys %}
+          {% if pk in post_labels %}
+          <option value="{{ pk }}" {% if data.line_post_key == pk or result.line.recommended.post_key == pk %}selected{% endif %}>{{ post_labels[pk] }}</option>
+          {% endif %}
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="flex: 1; min-width: 180px;">
+      <label class="text-sm" style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Terminal Post</label>
+      <select id="sel_term_post" onchange="reCalcPosts()" style="font-size: 0.85rem;">
+        <option value="auto">Auto (recommended)</option>
+        {% for g_label, g_keys in [
+          ("SS20 (Sch 20, Fy=30 ksi)", ["1_5_8_SS20","1_7_8_SS20","2_3_8_SS20","2_7_8_SS20","3_1_2_SS20","4_0_SS20"]),
+          ("SS40 (Sch 40, Fy=50 ksi)", ["1_7_8_PIPE","2_3_8_SS40","2_7_8_SS40","3_1_2_SS40","4_0_PIPE","6_5_8_PIPE","8_5_8_PIPE"]),
+          ("Sch 80 (Fy=50 ksi)", ["2_3_8_S80","2_7_8_S80","3_1_2_S80","4_0_S80"])
+        ] %}
+        <optgroup label="{{ g_label }}">
+          {% for pk in g_keys %}
+          {% if pk in post_labels %}
+          <option value="{{ pk }}" {% if data.terminal_post_key == pk or result.terminal.recommended.post_key == pk %}selected{% endif %}>{{ post_labels[pk] }}</option>
+          {% endif %}
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div id="post-results-area">
   <div class="post-cards-grid">
     <!-- Line Post -->
-    <div class="post-card">
+    <div class="post-card" id="line-card">
       <div class="post-card-header post-card-line">
         <span class="post-card-tag">Line Post</span>
         {% if result.line.status == "GREEN" %}
-        <span class="post-card-status post-card-ok">OK</span>
+        <span class="post-card-status post-card-ok" id="line-badge">OK</span>
         {% elif result.line.status == "YELLOW" %}
-        <span class="post-card-status post-card-marginal">Marginal</span>
+        <span class="post-card-status post-card-marginal" id="line-badge">Marginal</span>
         {% else %}
-        <span class="post-card-status post-card-fail">Over</span>
+        <span class="post-card-status post-card-fail" id="line-badge">Over</span>
         {% endif %}
       </div>
-      <div class="post-card-body">
-        <div class="post-card-size">{{ result.line.recommended.post_label or "Auto" }}</div>
-        <div class="post-card-detail">
+      <div class="post-card-body" id="line-body">
+        <div class="post-card-size" id="line-size">{{ result.line.recommended.post_label or "Auto" }}</div>
+        <div class="post-card-detail" id="line-detail">
           {% if result.line.max_spacing_ft %}
           <span>Max spacing: <b>{{ "%.1f"|format(result.line.max_spacing_ft) }} ft</b></span>
           {% endif %}
@@ -129,27 +172,27 @@
         {% if result.line.moment_ratio is not none %}
         {{ util_bar("Bending", result.line.moment_ratio) }}
         {% endif %}
-        <div class="post-card-footing">
+        <div class="post-card-footing" id="line-footing">
           {{ result.line.recommended.footing_diameter_in|int }}" dia &times; {{ result.line.recommended.embedment_in|int }}" deep
         </div>
       </div>
     </div>
 
     <!-- Terminal Post -->
-    <div class="post-card">
+    <div class="post-card" id="term-card">
       <div class="post-card-header post-card-terminal">
         <span class="post-card-tag">Terminal Post</span>
         {% if result.terminal.status == "GREEN" %}
-        <span class="post-card-status post-card-ok">OK</span>
+        <span class="post-card-status post-card-ok" id="term-badge">OK</span>
         {% elif result.terminal.status == "YELLOW" %}
-        <span class="post-card-status post-card-marginal">Marginal</span>
+        <span class="post-card-status post-card-marginal" id="term-badge">Marginal</span>
         {% else %}
-        <span class="post-card-status post-card-fail">Over</span>
+        <span class="post-card-status post-card-fail" id="term-badge">Over</span>
         {% endif %}
       </div>
-      <div class="post-card-body">
-        <div class="post-card-size">{{ result.terminal.recommended.post_label or "Auto" }}</div>
-        <div class="post-card-detail">
+      <div class="post-card-body" id="term-body">
+        <div class="post-card-size" id="term-size">{{ result.terminal.recommended.post_label or "Auto" }}</div>
+        <div class="post-card-detail" id="term-detail">
           {% if result.terminal.max_spacing_ft %}
           <span>Max spacing: <b>{{ "%.1f"|format(result.terminal.max_spacing_ft) }} ft</b></span>
           {% endif %}
@@ -160,22 +203,126 @@
         {% if result.terminal.moment_ratio is not none %}
         {{ util_bar("Bending", result.terminal.moment_ratio) }}
         {% endif %}
-        <div class="post-card-footing">
+        <div class="post-card-footing" id="term-footing">
           {{ result.terminal.recommended.footing_diameter_in|int }}" dia &times; {{ result.terminal.recommended.embedment_in|int }}" deep
         </div>
       </div>
     </div>
   </div>
+  </div>
 
   <!-- Warnings -->
   {% set all_warnings = result.line.warnings + result.terminal.warnings %}
   {% if all_warnings %}
-  <div style="margin-top: 1rem;">
+  <div style="margin-top: 1rem;" id="post-warnings">
     {% for w in all_warnings|unique %}
     <div class="inline-warning">{{ w }}</div>
     {% endfor %}
   </div>
   {% endif %}
+</div>
+
+<!-- ===== Spec Drawing ===== -->
+<div class="card">
+  <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
+    <h2>Post Detail</h2>
+    <p>Typical post &amp; footing cross-section (not to scale)</p>
+  </div>
+  <div style="display: flex; justify-content: center; padding: 0.5rem 0;">
+    {% set h_ft = data.height_total_ft|float %}
+    {% set embed_in = result.terminal.recommended.embedment_in|float %}
+    {% set footing_dia = result.terminal.recommended.footing_diameter_in|float %}
+    {% set post_od = result.terminal.recommended.od_in|default(2.875, true)|float %}
+    {% set spacing_ft = data.post_spacing_ft|float %}
+    <svg viewBox="0 0 320 400" width="320" height="400" xmlns="http://www.w3.org/2000/svg" style="font-family: Inter, sans-serif;">
+      <!-- Background -->
+      <defs>
+        <pattern id="soil-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" stroke="var(--hfc-text-tertiary)" stroke-width="0.5" opacity="0.4"/>
+        </pattern>
+        <pattern id="concrete-dots" patternUnits="userSpaceOnUse" width="6" height="6">
+          <circle cx="1.5" cy="1.5" r="0.7" fill="var(--hfc-text-tertiary)" opacity="0.5"/>
+          <circle cx="4.5" cy="4.5" r="0.7" fill="var(--hfc-text-tertiary)" opacity="0.5"/>
+        </pattern>
+      </defs>
+
+      <!-- Grade line -->
+      <line x1="30" y1="200" x2="290" y2="200" stroke="var(--hfc-ok)" stroke-width="2.5" stroke-dasharray="8,3"/>
+      <text x="292" y="204" font-size="10" fill="var(--hfc-ok)" font-weight="600">GRADE</text>
+
+      <!-- Soil area below grade -->
+      <rect x="30" y="200" width="260" height="180" fill="url(#soil-hatch)" rx="0"/>
+
+      <!-- Concrete footing (below grade) -->
+      {% set ftg_w = [footing_dia * 3.5, 100]|min %}
+      {% set ftg_cx = 130 %}
+      {% set ftg_h = [(embed_in / 12.0) * 22, 150]|min %}
+      <rect x="{{ ftg_cx - ftg_w/2 }}" y="200" width="{{ ftg_w }}" height="{{ ftg_h }}"
+            fill="url(#concrete-dots)" stroke="var(--hfc-text-secondary)" stroke-width="1.5" rx="3"/>
+      <rect x="{{ ftg_cx - ftg_w/2 }}" y="200" width="{{ ftg_w }}" height="{{ ftg_h }}"
+            fill="var(--hfc-text-tertiary)" opacity="0.12" rx="3"/>
+
+      <!-- Post (above + below grade) -->
+      {% set post_w = [post_od * 4, 20]|min %}
+      {% set above_h = [h_ft * 22, 170]|min %}
+      <rect x="{{ ftg_cx - post_w/2 }}" y="{{ 200 - above_h }}" width="{{ post_w }}"
+            height="{{ above_h + ftg_h }}"
+            fill="var(--hfc-blue)" stroke="var(--hfc-blue-dark)" stroke-width="1" rx="2"/>
+
+      <!-- Fence fabric (mesh pattern) -->
+      {% set fab_left = ftg_cx + post_w/2 + 2 %}
+      {% set fab_top = 200 - above_h + 8 %}
+      <rect x="{{ fab_left }}" y="{{ fab_top }}" width="80" height="{{ above_h - 12 }}"
+            fill="none" stroke="var(--hfc-text-tertiary)" stroke-width="0.7" stroke-dasharray="3,3" rx="1"/>
+      <line x1="{{ fab_left }}" y1="{{ fab_top }}" x2="{{ fab_left + 80 }}" y2="{{ fab_top + above_h - 12 }}"
+            stroke="var(--hfc-text-tertiary)" stroke-width="0.4" opacity="0.6"/>
+      <line x1="{{ fab_left + 80 }}" y1="{{ fab_top }}" x2="{{ fab_left }}" y2="{{ fab_top + above_h - 12 }}"
+            stroke="var(--hfc-text-tertiary)" stroke-width="0.4" opacity="0.6"/>
+
+      <!-- Top rail -->
+      <rect x="{{ ftg_cx - post_w/2 - 4 }}" y="{{ fab_top - 3 }}" width="{{ post_w + 88 }}" height="5"
+            fill="var(--hfc-blue)" stroke="var(--hfc-blue-dark)" stroke-width="0.7" rx="2"/>
+
+      <!-- Dimension: Fence Height (left side) -->
+      <line x1="50" y1="{{ 200 - above_h }}" x2="50" y2="200" stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <line x1="46" y1="{{ 200 - above_h }}" x2="54" y2="{{ 200 - above_h }}" stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <line x1="46" y1="200" x2="54" y2="200" stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <text x="48" y="{{ 200 - above_h/2 + 4 }}" font-size="11" fill="var(--hfc-text)" font-weight="600"
+            text-anchor="end" transform="rotate(-90,48,{{ 200 - above_h/2 + 4 }})">{{ "%.1f"|format(h_ft) }} ft</text>
+
+      <!-- Dimension: Embedment Depth (left side) -->
+      <line x1="50" y1="200" x2="50" y2="{{ 200 + ftg_h }}" stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <line x1="46" y1="{{ 200 + ftg_h }}" x2="54" y2="{{ 200 + ftg_h }}" stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <text x="48" y="{{ 200 + ftg_h/2 + 4 }}" font-size="10" fill="var(--hfc-text)" font-weight="600"
+            text-anchor="end" transform="rotate(-90,48,{{ 200 + ftg_h/2 + 4 }})">{{ "%.0f"|format(embed_in) }}"</text>
+
+      <!-- Dimension: Footing Diameter (bottom) -->
+      <line x1="{{ ftg_cx - ftg_w/2 }}" y1="{{ 200 + ftg_h + 12 }}" x2="{{ ftg_cx + ftg_w/2 }}" y2="{{ 200 + ftg_h + 12 }}"
+            stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <line x1="{{ ftg_cx - ftg_w/2 }}" y1="{{ 200 + ftg_h + 8 }}" x2="{{ ftg_cx - ftg_w/2 }}" y2="{{ 200 + ftg_h + 16 }}"
+            stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <line x1="{{ ftg_cx + ftg_w/2 }}" y1="{{ 200 + ftg_h + 8 }}" x2="{{ ftg_cx + ftg_w/2 }}" y2="{{ 200 + ftg_h + 16 }}"
+            stroke="var(--hfc-text)" stroke-width="0.7"/>
+      <text x="{{ ftg_cx }}" y="{{ 200 + ftg_h + 25 }}" font-size="10" fill="var(--hfc-text)" font-weight="600" text-anchor="middle">
+        {{ "%.0f"|format(footing_dia) }}" DIA
+      </text>
+
+      <!-- Post OD label -->
+      <text x="{{ ftg_cx }}" y="{{ 200 - above_h - 8 }}" font-size="10" fill="var(--hfc-blue)" font-weight="700" text-anchor="middle">
+        {{ result.terminal.recommended.post_label or "Post" }}
+      </text>
+
+      <!-- Spacing dimension (top) -->
+      <text x="{{ fab_left + 40 }}" y="{{ fab_top - 10 }}" font-size="9" fill="var(--hfc-text-secondary)" font-weight="500" text-anchor="middle">
+        {{ spacing_ft }} ft O.C.
+      </text>
+
+      <!-- Labels -->
+      <text x="275" y="260" font-size="9" fill="var(--hfc-text-secondary)" font-weight="500" text-anchor="end">CONC.</text>
+      <text x="275" y="274" font-size="9" fill="var(--hfc-text-secondary)" font-weight="500" text-anchor="end">PIER</text>
+      <text x="{{ fab_left + 40 }}" y="{{ fab_top + (above_h - 12)/2 + 3 }}" font-size="9" fill="var(--hfc-text-tertiary)" font-weight="500" text-anchor="middle">FABRIC</text>
+    </svg>
+  </div>
 </div>
 
 <!-- ===== Quantities ===== -->
@@ -385,6 +532,50 @@
 function _themeColor(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
+
+/* ── Post type recalculation ──────────────────────────────── */
+var _postTimer = null;
+function reCalcPosts() {
+  clearTimeout(_postTimer);
+  _postTimer = setTimeout(function() {
+    var lk = document.getElementById('sel_line_post').value;
+    var tk = document.getElementById('sel_term_post').value;
+    var body = {
+      wind_speed_mph: {{ data.wind_speed_mph }},
+      height_total_ft: {{ data.height_total_ft }},
+      post_spacing_ft: {{ data.post_spacing_ft }},
+      exposure: "{{ data.exposure }}",
+      fence_type: "{{ data.fence_type or 'chain_link_open' }}",
+      risk_category: "{{ data.risk_category }}",
+      kzt: {{ data.kzt or 1.0 }}
+    };
+    {% if data.fence_length_ft %}body.fence_length_ft = {{ data.fence_length_ft }};{% endif %}
+    if (lk && lk !== 'auto') body.line_post_key = lk;
+    if (tk && tk !== 'auto') body.terminal_post_key = tk;
+    fetch('/api/v1/estimate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      updatePostCard('line', d.line);
+      updatePostCard('term', d.terminal);
+    }).catch(function(){});
+  }, 250);
+}
+function updatePostCard(prefix, blk) {
+  var sizeEl = document.getElementById(prefix+'-size');
+  var detEl  = document.getElementById(prefix+'-detail');
+  var footEl = document.getElementById(prefix+'-footing');
+  var badgeEl = document.getElementById(prefix+'-badge');
+  if (sizeEl) sizeEl.textContent = blk.recommended.post_label || 'Auto';
+  if (detEl && blk.max_spacing_ft) detEl.innerHTML = 'Max spacing: <b>' + blk.max_spacing_ft.toFixed(1) + ' ft</b>';
+  if (footEl && blk.recommended.footing_diameter_in)
+    footEl.textContent = Math.round(blk.recommended.footing_diameter_in) + '" dia \u00D7 ' + Math.round(blk.recommended.embedment_in) + '" deep';
+  if (badgeEl) {
+    badgeEl.textContent = blk.status === 'GREEN' ? 'OK' : (blk.status === 'YELLOW' ? 'Marginal' : 'Over');
+    badgeEl.className = 'post-card-status ' + (blk.status === 'GREEN' ? 'post-card-ok' : (blk.status === 'YELLOW' ? 'post-card-marginal' : 'post-card-fail'));
+  }
+}
+
+/* ── What-If live analysis ────────────────────────────────── */
 var _wiTimer = null;
 function runWhatIf() {
   clearTimeout(_wiTimer);

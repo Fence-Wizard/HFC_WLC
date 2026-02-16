@@ -30,10 +30,18 @@ REPORT_DIR.mkdir(exist_ok=True)
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# Only pipe posts for the wizard (commercial chain-link focus).
+# Pipe posts for the wizard, grouped by schedule.
 # C-shapes are retained in POST_TYPES for backward compat / API but
 # are not presented in the wizard UI.
 _PIPE_POST_KEYS = [
+    # SS20 (Schedule 20, ASTM F1083 Group IA, Fy=30 ksi)
+    "1_5_8_SS20",
+    "1_7_8_SS20",
+    "2_3_8_SS20",
+    "2_7_8_SS20",
+    "3_1_2_SS20",
+    "4_0_SS20",
+    # SS40 (Schedule 40, ASTM F1083 Group IC, Fy=50 ksi)
     "1_7_8_PIPE",
     "2_3_8_SS40",
     "2_7_8_SS40",
@@ -41,6 +49,11 @@ _PIPE_POST_KEYS = [
     "4_0_PIPE",
     "6_5_8_PIPE",
     "8_5_8_PIPE",
+    # Sch80 (heavier wall, Fy=50 ksi)
+    "2_3_8_S80",
+    "2_7_8_S80",
+    "3_1_2_S80",
+    "4_0_S80",
 ]
 POST_OPTIONS = [
     {"key": key, "label": POST_TYPES[key].label}
