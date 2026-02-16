@@ -41,6 +41,12 @@
   <input type="hidden" name="fence_type" value="{{ data.fence_type }}" />
   <input type="hidden" name="line_post_key" value="{{ data.line_post_key or 'auto' }}" />
   <input type="hidden" name="terminal_post_key" value="{{ data.terminal_post_key or 'auto' }}" />
+  <input type="hidden" name="kzt" value="{{ data.kzt or '1.0' }}" />
+  <input type="hidden" name="soil_type" value="{{ data.soil_type or 'default' }}" />
+  <input type="hidden" name="embedment_depth_in" value="{{ data.embedment_depth_in or '' }}" />
+  <input type="hidden" name="footing_diameter_in" value="{{ data.footing_diameter_in or '' }}" />
+  <input type="hidden" name="num_gates" value="{{ data.num_gates or '0' }}" />
+  <input type="hidden" name="num_corners" value="{{ data.num_corners or '0' }}" />
 
   <div class="card">
     <div class="card-header">

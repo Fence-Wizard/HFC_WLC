@@ -79,20 +79,30 @@
 
     <div class="form-group">
       <label for="wind_speed_mph">Design Wind Speed V (mph)</label>
-      <input
-        type="number"
-        id="wind_speed_mph"
-        name="wind_speed_mph"
-        step="1"
-        min="60"
-        max="250"
-        value="{{ data.wind_speed_mph or '' }}"
-        placeholder="e.g. 115"
-        required
-      />
+      <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+        <input
+          type="number"
+          id="wind_speed_mph"
+          name="wind_speed_mph"
+          step="1"
+          min="60"
+          max="250"
+          value="{{ data.wind_speed_mph or '' }}"
+          placeholder="e.g. 115"
+          required
+          style="flex: 1;"
+        />
+        <button type="button" id="lookup_btn" class="btn btn-secondary"
+                style="white-space: nowrap; padding: 0.5rem 0.75rem; font-size: 0.85rem;"
+                onclick="lookupWindSpeed()">
+          Auto-fill from ZIP
+        </button>
+      </div>
       <span class="form-hint">
         3-second gust at 33 ft, from ASCE wind maps or project drawings.
+        Click "Auto-fill" for an approximate value based on ZIP code and risk category.
       </span>
+      <span id="lookup_result" class="form-hint" style="color: var(--hfc-blue); display: none;"></span>
     </div>
 
     <details>
@@ -172,6 +182,55 @@
       </span>
     </div>
 
+    <details style="margin-top: 1rem;">
+      <summary style="font-weight: 600; cursor: pointer;">Advanced Parameters</summary>
+      <div class="detail-content" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label for="kzt">Topographic Factor K<sub>zt</sub></label>
+          <input
+            type="number"
+            id="kzt"
+            name="kzt"
+            step="0.01"
+            min="1.0"
+            max="3.0"
+            value="{{ data.kzt or '1.0' }}"
+          />
+          <span class="form-hint">
+            1.0 for flat terrain (default). Increase for hilltops, ridges, or escarpments
+            per ASCE 7-22 Section 26.8. Typical range 1.0-1.8.
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="soil_type">Soil Type (for footing check)</label>
+          <select id="soil_type" name="soil_type">
+            <option value="default" {% if not data.soil_type or data.soil_type=='default' %}selected{% endif %}>
+              Default - Stiff soil (conservative)
+            </option>
+            <option value="rock_crystalline" {% if data.soil_type=='rock_crystalline' %}selected{% endif %}>
+              Crystalline bedrock (1200 psf/ft)
+            </option>
+            <option value="rock_sedimentary" {% if data.soil_type=='rock_sedimentary' %}selected{% endif %}>
+              Sedimentary rock (400 psf/ft)
+            </option>
+            <option value="gravel" {% if data.soil_type=='gravel' %}selected{% endif %}>
+              Sandy gravel, GW/GP (200 psf/ft)
+            </option>
+            <option value="sand" {% if data.soil_type=='sand' %}selected{% endif %}>
+              Sand, silty sand, SW/SP/SM (150 psf/ft)
+            </option>
+            <option value="clay" {% if data.soil_type=='clay' %}selected{% endif %}>
+              Clay, sandy clay, CL/ML (100 psf/ft)
+            </option>
+          </select>
+          <span class="form-hint">
+            Per IBC Table 1806.2. Used for lateral soil resistance check on footings.
+          </span>
+        </div>
+      </div>
+    </details>
+
     <div class="btn-group">
       <button type="submit" class="btn btn-primary btn-lg">
         Next &rarr;
@@ -181,9 +240,45 @@
 </form>
 
 <script>
+// ZIP code wind speed auto-lookup
+function lookupWindSpeed() {
+  var zip = document.getElementById('zip_code').value;
+  var rc = document.getElementById('risk_category').value;
+  var resultEl = document.getElementById('lookup_result');
+
+  if (!zip || zip.length < 5) {
+    resultEl.style.display = 'block';
+    resultEl.style.color = 'var(--hfc-red)';
+    resultEl.textContent = 'Enter a valid 5-digit ZIP code first.';
+    return;
+  }
+
+  fetch('/api/v1/wind-speed-lookup?zip_code=' + zip + '&risk_category=' + rc)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.wind_speed_mph) {
+        document.getElementById('wind_speed_mph').value = data.wind_speed_mph;
+        resultEl.style.display = 'block';
+        resultEl.style.color = 'var(--hfc-blue)';
+        resultEl.textContent = 'Approx. ' + data.wind_speed_mph + ' mph for ' +
+          data.region + ' (Risk Cat ' + rc + '). Verify with project drawings.';
+        sessionStorage.setItem('step1_wind_speed_mph', data.wind_speed_mph);
+      } else {
+        resultEl.style.display = 'block';
+        resultEl.style.color = 'var(--hfc-red)';
+        resultEl.textContent = data.region || 'ZIP code not found in database.';
+      }
+    })
+    .catch(function() {
+      resultEl.style.display = 'block';
+      resultEl.style.color = 'var(--hfc-red)';
+      resultEl.textContent = 'Lookup failed. Enter wind speed manually.';
+    });
+}
+
 // Persist form state in sessionStorage
 (function() {
-  var fields = ['zip_code','risk_category','wind_speed_mph','exposure'];
+  var fields = ['zip_code','risk_category','wind_speed_mph','exposure','kzt','soil_type'];
   fields.forEach(function(f) {
     var el = document.getElementById(f);
     if (!el) return;

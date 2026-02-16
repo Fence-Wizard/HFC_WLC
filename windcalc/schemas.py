@@ -92,13 +92,42 @@ class EstimateInput(BaseModel):
         default="III",
         description="Risk category (I-IV) per ASCE 7-22 Table 1.5-1",
     )
-    soil_type: str | None = Field(None, description="Optional soil descriptor")
+    soil_type: str | None = Field(
+        None, description="Soil class key for footing check (e.g. 'sand', 'clay')"
+    )
+    # Topographic factor Kzt (ASCE 7-22 Section 26.8)
+    kzt: float = Field(
+        default=1.0,
+        ge=1.0,
+        le=3.0,
+        description="Topographic factor Kzt (1.0 for flat terrain, >1.0 for hills/ridges)",
+    )
+    # Embedment overrides
+    embedment_depth_in: float | None = Field(
+        None, gt=0, le=120, description="User override for embedment depth (inches)"
+    )
+    footing_diameter_in: float | None = Field(
+        None, gt=0, le=60, description="User override for footing diameter (inches)"
+    )
     # Dual post selections
     line_post_key: str | None = Field(
         None, description="Optional line post key override (e.g., '2_3_8_SS40')"
     )
     terminal_post_key: str | None = Field(
         None, description="Optional terminal post key override (e.g., '3_1_2_SS40')"
+    )
+    # Gate / corner post selections
+    gate_post_key: str | None = Field(
+        None, description="Optional gate post key override"
+    )
+    corner_post_key: str | None = Field(
+        None, description="Optional corner post key override"
+    )
+    num_gates: int = Field(
+        default=0, ge=0, description="Number of gate openings (each needs 2 gate posts)"
+    )
+    num_corners: int = Field(
+        default=0, ge=0, description="Number of corners"
     )
     # Deprecated single selections (kept for backward compatibility)
     post_role: Literal["line", "terminal"] = Field(
@@ -154,6 +183,29 @@ class DesignParameters(BaseModel):
     qz_psf: float = Field(..., description="Velocity pressure in psf")
 
 
+class FootingResult(BaseModel):
+    """Results from the IBC 1807.3 lateral soil resistance check."""
+
+    overturning_moment_ft_lb: float = 0.0
+    resisting_moment_ft_lb: float = 0.0
+    safety_factor: float = 0.0
+    footing_ok: bool = True
+    min_embedment_ft: float = 0.0
+    actual_embedment_ft: float = 0.0
+    footing_diameter_in: float = 0.0
+    soil_label: str = ""
+    concrete_volume_cf: float = 0.0
+
+
+class DeflectionResult(BaseModel):
+    """Results from the post deflection (serviceability) check."""
+
+    deflection_in: float = 0.0
+    allowable_in: float = 0.0
+    deflection_ok: bool = True
+    ratio: float = 0.0
+
+
 class SharedResult(BaseModel):
     pressure_psf: float
     area_per_bay_ft2: float
@@ -178,7 +230,26 @@ class BlockResult(BaseModel):
     moment_ratio: float | None = Field(
         None, description="M_demand / M_allow (>1.0 = over capacity)"
     )
+    footing: FootingResult | None = None
+    deflection: DeflectionResult | None = None
     status: Literal["GREEN", "YELLOW", "RED"] = "GREEN"
+
+
+class QuantitiesResult(BaseModel):
+    """Material quantity takeoff for a fence run."""
+
+    fence_length_ft: float = 0.0
+    num_line_posts: int = 0
+    num_terminal_posts: int = 0
+    num_corner_posts: int = 0
+    num_gate_posts: int = 0
+    total_posts: int = 0
+    top_rail_lf: float = 0.0
+    fabric_sf: float = 0.0
+    total_concrete_cf: float = 0.0
+    total_concrete_cy: float = 0.0
+    line_post_length_ft: float = 0.0
+    terminal_post_length_ft: float = 0.0
 
 
 class EstimateOutput(BaseModel):
@@ -189,6 +260,7 @@ class EstimateOutput(BaseModel):
     line: BlockResult
     terminal: BlockResult
     overall_status: str = "GREEN"
+    quantities: QuantitiesResult | None = None
     # Legacy top-level fields (mapped to line block for compatibility)
     pressure_psf: float = Field(
         ..., description="Applied pressure in psf (legacy; line block)"
@@ -221,12 +293,74 @@ class EstimateOutput(BaseModel):
     )
 
 
+# ── Multi-segment schemas ────────────────────────────────────────────
+
+class SegmentInput(BaseModel):
+    """Input for a single fence segment in a multi-segment project."""
+
+    label: str = Field(default="Segment 1", description="Segment label")
+    height_total_ft: float = Field(..., gt=0, le=50)
+    post_spacing_ft: float = Field(..., gt=0, le=30)
+    fence_length_ft: float = Field(..., gt=0, le=50000)
+    fence_type: str = Field(default="chain_link_open")
+    line_post_key: str | None = None
+    terminal_post_key: str | None = None
+    gate_post_key: str | None = None
+    corner_post_key: str | None = None
+    num_terminals: int = Field(default=2, ge=0)
+    num_corners: int = Field(default=0, ge=0)
+    num_gates: int = Field(default=0, ge=0)
+
+
+class ProjectInput(BaseModel):
+    """Multi-segment project input with shared wind parameters."""
+
+    wind_speed_mph: float = Field(..., gt=0, le=300)
+    exposure: Literal["B", "C", "D"] = Field(default="C")
+    risk_category: Literal["I", "II", "III", "IV"] = Field(default="III")
+    kzt: float = Field(default=1.0, ge=1.0, le=3.0)
+    soil_type: str | None = None
+    embedment_depth_in: float | None = None
+    footing_diameter_in: float | None = None
+    segments: list[SegmentInput] = Field(..., min_length=1)
+
+    # Project metadata
+    project_name: str = ""
+    location: str = ""
+    estimator: str = ""
+
+
+class SegmentOutput(BaseModel):
+    """Output for a single segment in a multi-segment project."""
+
+    label: str = ""
+    estimate: EstimateOutput
+    quantities: QuantitiesResult | None = None
+
+
+class ProjectOutput(BaseModel):
+    """Multi-segment project output with combined quantities."""
+
+    segments: list[SegmentOutput] = Field(default_factory=list)
+    overall_status: str = "GREEN"
+    total_quantities: QuantitiesResult | None = None
+
+
 __all__ = [
+    "BlockResult",
+    "DeflectionResult",
     "DesignParameters",
     "EstimateInput",
     "EstimateOutput",
     "FenceSpecs",
+    "FootingResult",
+    "ProjectInput",
+    "ProjectOutput",
+    "QuantitiesResult",
     "Recommendation",
+    "SegmentInput",
+    "SegmentOutput",
+    "SharedResult",
     "WindConditions",
     "WindLoadRequest",
     "WindLoadResult",

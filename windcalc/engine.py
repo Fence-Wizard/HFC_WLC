@@ -12,18 +12,27 @@ import warnings
 
 from windcalc.asce7 import FENCE_TYPES as ASCE_FENCE_TYPES
 from windcalc.asce7 import compute_design_pressure
+from windcalc.footing import compute_footing_check
 from windcalc.post_catalog import (
     POST_TYPES,
+    compute_deflection_check,
     compute_max_spacing_cf,
     compute_max_spacing_from_tables,
     compute_moment_check,
 )
+from windcalc.quantities import compute_segment_quantities
 from windcalc.schemas import (
     BlockResult,
+    DeflectionResult,
     DesignParameters,
     EstimateInput,
     EstimateOutput,
+    FootingResult,
+    ProjectInput,
+    ProjectOutput,
+    QuantitiesResult,
     Recommendation,
+    SegmentOutput,
     SharedResult,
     WindLoadRequest,
     WindLoadResult,
@@ -237,6 +246,8 @@ def _compute_block(
     M_demand_lb_in: float | None = None  # noqa: N806
     M_allow_lb_in: float | None = None  # noqa: N806
     moment_ok: bool | None = None
+    footing_result: FootingResult | None = None
+    deflection_result: DeflectionResult | None = None
 
     if effective_key and effective_key in POST_TYPES:
         table_spacing = compute_max_spacing_from_tables(
@@ -272,6 +283,66 @@ def _compute_block(
             load_per_post_lb=load_per_post_lb,
         )
 
+        # Footing check (IBC 1807.3)
+        post_obj = POST_TYPES[effective_key]
+        embed_in = data.embedment_depth_in or (
+            recommended.embedment_in if recommended else (post_obj.footing_embedment_in or 30.0)
+        )
+        _default_dia = post_obj.footing_diameter_in or 12.0
+        footing_dia_in = data.footing_diameter_in or (
+            recommended.footing_diameter_in if recommended else _default_dia
+        )
+
+        try:
+            fc = compute_footing_check(
+                load_per_post_lb=load_per_post_lb,
+                height_above_grade_ft=data.height_total_ft,
+                footing_diameter_in=footing_dia_in,
+                embedment_depth_in=embed_in,
+                soil_class=data.soil_type or "default",
+            )
+            footing_result = FootingResult(
+                overturning_moment_ft_lb=fc.overturning_moment_ft_lb,
+                resisting_moment_ft_lb=fc.resisting_moment_ft_lb,
+                safety_factor=fc.safety_factor,
+                footing_ok=fc.footing_ok,
+                min_embedment_ft=fc.min_embedment_ft,
+                actual_embedment_ft=fc.actual_embedment_ft,
+                footing_diameter_in=fc.footing_diameter_in,
+                soil_label=fc.soil_label,
+                concrete_volume_cf=fc.concrete_volume_cf,
+            )
+            if not fc.footing_ok:
+                warnings_list.append(
+                    f"Footing SF = {fc.safety_factor:.2f} (need >= 1.50). "
+                    f"Min embedment: {fc.min_embedment_ft:.1f} ft "
+                    f"({fc.min_embedment_ft * 12:.0f} in)."
+                )
+        except Exception:
+            logger.debug("Footing check skipped for %s", effective_key, exc_info=True)
+
+        # Deflection check (serviceability)
+        try:
+            defl_in, defl_allow_in, defl_ok = compute_deflection_check(
+                post_key=effective_key,
+                height_ft=data.height_total_ft,
+                load_per_post_lb=load_per_post_lb,
+            )
+            defl_ratio = round(defl_in / defl_allow_in, 3) if defl_allow_in > 0 else 0.0
+            deflection_result = DeflectionResult(
+                deflection_in=defl_in,
+                allowable_in=defl_allow_in,
+                deflection_ok=defl_ok,
+                ratio=defl_ratio,
+            )
+            if not defl_ok:
+                warnings_list.append(
+                    f"Deflection {defl_in:.2f} in exceeds L/60 limit of "
+                    f"{defl_allow_in:.2f} in. Consider a stiffer post."
+                )
+        except Exception:
+            logger.debug("Deflection check skipped for %s", effective_key, exc_info=True)
+
     # Compute utilization ratios
     spacing_ratio: float | None = None
     moment_ratio: float | None = None
@@ -303,6 +374,10 @@ def _compute_block(
         elif moment_ratio > 0.80 and status != "RED":
             status = "YELLOW"
 
+    # Footing check is advisory - does not escalate status.
+    # The user should review the footing warning and increase embedment
+    # if needed. This keeps the primary status focused on spacing/bending.
+
     return BlockResult(
         post_key=effective_key,
         post_label=recommended.post_label if recommended else None,
@@ -315,6 +390,8 @@ def _compute_block(
         moment_ok=moment_ok,
         spacing_ratio=spacing_ratio,
         moment_ratio=moment_ratio,
+        footing=footing_result,
+        deflection=deflection_result,
         status=status,
     )
 
@@ -331,12 +408,16 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     # Compute B/s aspect ratio for Cf lookup (None = long run assumed)
     aspect_ratio_bs = data.aspect_ratio_bs
 
+    # User-specified Kzt or default 1.0
+    kzt = data.kzt if data.kzt else 1.0
+
     # ASCE 7-22 design pressure
     dp = compute_design_pressure(
         wind_speed_mph=data.wind_speed_mph,
         height_ft=data.height_total_ft,
         exposure=data.exposure,
         solidity=solidity,
+        kzt=kzt,
         fence_type=data.fence_type,
         aspect_ratio_bs=aspect_ratio_bs,
     )
@@ -406,12 +487,43 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     elif line_block.status == "YELLOW" or terminal_block.status == "YELLOW":
         overall_status = "YELLOW"
 
+    # Compute quantities when fence length is provided
+    quantities: QuantitiesResult | None = None
+    if data.fence_length_ft and data.fence_length_ft > 0:
+        sq = compute_segment_quantities(
+            fence_length_ft=data.fence_length_ft,
+            height_ft=data.height_total_ft,
+            post_spacing_ft=data.post_spacing_ft,
+            line_post_key=line_post_key,
+            terminal_post_key=terminal_post_key,
+            num_terminals=2,
+            num_corners=data.num_corners,
+            num_gates=data.num_gates * 2,
+            embedment_override_in=data.embedment_depth_in,
+            footing_diameter_override_in=data.footing_diameter_in,
+        )
+        quantities = QuantitiesResult(
+            fence_length_ft=sq.fence_length_ft,
+            num_line_posts=sq.num_line_posts,
+            num_terminal_posts=sq.num_terminal_posts,
+            num_corner_posts=sq.num_corner_posts,
+            num_gate_posts=sq.num_gate_posts,
+            total_posts=sq.total_posts,
+            top_rail_lf=sq.top_rail_lf,
+            fabric_sf=sq.fabric_sf,
+            total_concrete_cf=sq.total_concrete_cf,
+            total_concrete_cy=sq.total_concrete_cy,
+            line_post_length_ft=sq.line_post_length_ft,
+            terminal_post_length_ft=sq.terminal_post_length_ft,
+        )
+
     # Legacy compatibility: map to line block
     return EstimateOutput(
         shared=shared,
         line=line_block,
         terminal=terminal_block,
         overall_status=overall_status,
+        quantities=quantities,
         pressure_psf=shared.pressure_psf,
         area_per_bay_ft2=shared.area_per_bay_ft2,
         total_load_lb=shared.total_load_lb,
@@ -422,6 +534,93 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         max_spacing_ft=line_block.max_spacing_ft,
         M_demand_ft_lb=line_block.M_demand_ft_lb,
         M_allow_ft_lb=line_block.M_allow_ft_lb,
+    )
+
+
+def calculate_project(project: ProjectInput) -> ProjectOutput:
+    """Calculate wind loads for a multi-segment fence project.
+
+    Each segment is computed independently using the shared wind
+    parameters, then results and quantities are aggregated.
+    """
+    segment_outputs: list[SegmentOutput] = []
+    worst_status = "GREEN"
+
+    total_q = QuantitiesResult()
+    _line = 0
+    _term = 0
+    _corner = 0
+    _gate = 0
+    _posts = 0
+    _rail = 0.0
+    _fabric = 0.0
+    _concrete = 0.0
+    _length = 0.0
+
+    for seg in project.segments:
+        inp = EstimateInput(
+            wind_speed_mph=project.wind_speed_mph,
+            height_total_ft=seg.height_total_ft,
+            post_spacing_ft=seg.post_spacing_ft,
+            fence_length_ft=seg.fence_length_ft,
+            exposure=project.exposure,
+            fence_type=seg.fence_type,
+            risk_category=project.risk_category,
+            kzt=project.kzt,
+            soil_type=project.soil_type,
+            embedment_depth_in=project.embedment_depth_in,
+            footing_diameter_in=project.footing_diameter_in,
+            line_post_key=seg.line_post_key,
+            terminal_post_key=seg.terminal_post_key,
+            gate_post_key=seg.gate_post_key,
+            corner_post_key=seg.corner_post_key,
+            num_gates=seg.num_gates,
+            num_corners=seg.num_corners,
+        )
+        est = calculate(inp)
+
+        segment_outputs.append(SegmentOutput(
+            label=seg.label,
+            estimate=est,
+            quantities=est.quantities,
+        ))
+
+        # Aggregate status
+        if est.overall_status == "RED":
+            worst_status = "RED"
+        elif est.overall_status == "YELLOW" and worst_status != "RED":
+            worst_status = "YELLOW"
+
+        # Aggregate quantities
+        if est.quantities:
+            q = est.quantities
+            _line += q.num_line_posts
+            _term += q.num_terminal_posts
+            _corner += q.num_corner_posts
+            _gate += q.num_gate_posts
+            _posts += q.total_posts
+            _rail += q.top_rail_lf
+            _fabric += q.fabric_sf
+            _concrete += q.total_concrete_cf
+            _length += q.fence_length_ft
+
+    total_q = QuantitiesResult(
+        fence_length_ft=round(_length, 1),
+        num_line_posts=_line,
+        num_terminal_posts=_term,
+        num_corner_posts=_corner,
+        num_gate_posts=_gate,
+        total_posts=_posts,
+        top_rail_lf=round(_rail, 1),
+        fabric_sf=round(_fabric, 1),
+        total_concrete_cf=round(_concrete, 2),
+        total_concrete_cy=round(_concrete / 27.0, 2),
+    )
+
+    return ProjectOutput(
+        segments=segment_outputs,
+        overall_status=worst_status,
+        total_quantities=total_q,
     )
 
 
@@ -481,11 +680,13 @@ def _assumptions(data: EstimateInput) -> list[str]:
     fence_label = fence_info.label if fence_info else data.fence_type
 
     aspect_ratio_bs = data.aspect_ratio_bs
+    kzt = data.kzt if data.kzt else 1.0
     dp = compute_design_pressure(
         wind_speed_mph=data.wind_speed_mph,
         height_ft=data.height_total_ft,
         exposure=data.exposure,
         solidity=solidity,
+        kzt=kzt,
         fence_type=data.fence_type,
         aspect_ratio_bs=aspect_ratio_bs,
     )
@@ -498,6 +699,12 @@ def _assumptions(data: EstimateInput) -> list[str]:
         else "B/s >= 20 assumed (long run; fence length not specified)"
     )
 
+    kzt_note = (
+        f"Kzt = {dp.kzt} (user-specified topographic factor, Section 26.8)."
+        if kzt > 1.0
+        else f"Kzt = {dp.kzt} (flat terrain assumed)."
+    )
+
     assumptions = [
         f"Design wind speed V = {data.wind_speed_mph} mph "
         f"(3-sec gust at 33 ft) for Risk Category {data.risk_category}, "
@@ -507,7 +714,7 @@ def _assumptions(data: EstimateInput) -> list[str]:
         f"Kz = {dp.kz:.3f} (Exposure {data.exposure}, "
         f"h = {data.height_total_ft} ft, Table 26.10-1).",
         f"Kd = {dp.kd} (fences/signs, Table 26.6-1).",
-        f"Kzt = {dp.kzt} (flat terrain assumed).",
+        kzt_note,
         f"G = {dp.g} (rigid structure gust-effect factor, Section 26.11).",
         f"Cf = {dp.cf:.3f} ({fence_label}, "
         f"solidity = {solidity:.2f}, {bs_note}, "
@@ -517,6 +724,8 @@ def _assumptions(data: EstimateInput) -> list[str]:
         "Bending demand: M = P x (H/2), uniform load resultant at mid-height.",
         "Allowable bending: M_allow = Fy x S / omega, "
         "omega = 1.67 (ASD, AISC F1).",
+        "Deflection check: delta_max = P*L^3 / (8*E*I), limit L/60.",
+        "Footing check per IBC 1807.3: triangular soil pressure, SF >= 1.5.",
         "Pipe posts per ASTM F1083 Group IC (commercial chain-link). "
         "Fy = 50 ksi.",
         "Terminal posts modeled as cantilevers fixed at grade; "
@@ -529,5 +738,6 @@ def _assumptions(data: EstimateInput) -> list[str]:
 
 __all__ = [
     "calculate",
+    "calculate_project",
     "calculate_wind_load",
 ]

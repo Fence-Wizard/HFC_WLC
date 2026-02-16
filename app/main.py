@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -74,12 +75,16 @@ async def step2(
     risk_category: str = Form(...),
     wind_speed_mph: float = Form(...),
     exposure: str = Form(...),
+    kzt: str = Form("1.0"),
+    soil_type: str = Form("default"),
 ):
     data = {
         "zip_code": zip_code,
         "risk_category": risk_category,
         "wind_speed_mph": wind_speed_mph,
         "exposure": exposure,
+        "kzt": kzt,
+        "soil_type": soil_type,
     }
     return templates.TemplateResponse(
         request,
@@ -107,6 +112,12 @@ async def step3(
     line_post_key: str = Form("auto"),
     terminal_post_key: str = Form("auto"),
     post_key: str = Form("auto"),
+    kzt: str = Form("1.0"),
+    soil_type: str = Form("default"),
+    embedment_depth_in: str = Form(""),
+    footing_diameter_in: str = Form(""),
+    num_gates: str = Form("0"),
+    num_corners: str = Form("0"),
 ):
     data = {
         "zip_code": zip_code,
@@ -120,6 +131,12 @@ async def step3(
         "line_post_key": line_post_key or "auto",
         "terminal_post_key": terminal_post_key or "auto",
         "post_key": post_key,
+        "kzt": kzt,
+        "soil_type": soil_type,
+        "embedment_depth_in": embedment_depth_in,
+        "footing_diameter_in": footing_diameter_in,
+        "num_gates": num_gates,
+        "num_corners": num_corners,
     }
     return templates.TemplateResponse(
         request,
@@ -147,17 +164,39 @@ async def review(
     notes: str = Form(""),
     line_post_key: str = Form("auto"),
     terminal_post_key: str = Form("auto"),
+    kzt: str = Form("1.0"),
+    embedment_depth_in: str = Form(""),
+    footing_diameter_in: str = Form(""),
+    num_gates: str = Form("0"),
+    num_corners: str = Form("0"),
     post_role: str = Form("line"),  # deprecated
     post_key: str = Form(""),  # deprecated
     post_size: str = Form(""),  # legacy
 ):
-    # Parse optional fence length
+    # Parse optional values
     _fence_length: float | None = None
     if fence_length_ft and fence_length_ft.strip():
         try:
             _fence_length = float(fence_length_ft)
         except ValueError:
             _fence_length = None
+
+    _kzt = 1.0
+    with contextlib.suppress(ValueError):
+        _kzt = float(kzt) if kzt else 1.0
+
+    _embed: float | None = None
+    if embedment_depth_in and embedment_depth_in.strip():
+        with contextlib.suppress(ValueError):
+            _embed = float(embedment_depth_in)
+
+    _footing_dia: float | None = None
+    if footing_diameter_in and footing_diameter_in.strip():
+        with contextlib.suppress(ValueError):
+            _footing_dia = float(footing_diameter_in)
+
+    _num_gates = int(num_gates) if num_gates else 0
+    _num_corners = int(num_corners) if num_corners else 0
 
     data = {
         "zip_code": zip_code,
@@ -176,6 +215,11 @@ async def review(
         "notes": notes,
         "line_post_key": line_post_key or "auto",
         "terminal_post_key": terminal_post_key or "auto",
+        "kzt": _kzt,
+        "embedment_depth_in": embedment_depth_in,
+        "footing_diameter_in": footing_diameter_in,
+        "num_gates": _num_gates,
+        "num_corners": _num_corners,
         "post_role": post_role or "line",
         "post_key": post_key or "",
         "post_size": post_size or "",
@@ -189,7 +233,12 @@ async def review(
         exposure=exposure,
         fence_type=fence_type,
         risk_category=risk_category,
+        kzt=_kzt,
         soil_type=soil_type or None,
+        embedment_depth_in=_embed,
+        footing_diameter_in=_footing_dia,
+        num_gates=_num_gates,
+        num_corners=_num_corners,
         line_post_key=None
         if not line_post_key or line_post_key == "auto"
         else line_post_key,
@@ -234,6 +283,7 @@ async def download(
     estimator: str = "",
     line_post_key: str = "",
     terminal_post_key: str = "",
+    kzt: str = "1.0",
     post_role: str = "line",
     post_key: str = "",
     post_size: str = "",
@@ -245,6 +295,10 @@ async def download(
         except ValueError:
             _fence_length = None
 
+    _kzt = 1.0
+    with contextlib.suppress(ValueError):
+        _kzt = float(kzt) if kzt else 1.0
+
     inp = EstimateInput(
         wind_speed_mph=wind_speed_mph,
         height_total_ft=height_total_ft,
@@ -253,6 +307,7 @@ async def download(
         exposure=exposure,
         fence_type=fence_type,
         risk_category=risk_category,
+        kzt=_kzt,
         soil_type=soil_type or None,
         line_post_key=line_post_key or None,
         terminal_post_key=terminal_post_key or None,

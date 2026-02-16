@@ -142,6 +142,61 @@ POST_TYPES: dict[str, PostType] = {
         footing_diameter_in=30.0,
         footing_embedment_in=54.0,
     ),
+    # ── Schedule 80 pipe (heavier wall, high-security) ──────────
+    # Standard NPS Schedule 80 wall thicknesses.  Same OD as SS40
+    # but thicker wall = higher section modulus and bending capacity.
+    "2_3_8_S80": PostType(
+        key="2_3_8_S80",
+        label='2-3/8" Sch80',
+        group="IC_PIPE",
+        od_in=2.375,
+        wall_in=0.218,
+        height_base_ft=6.0,
+        spacing_base_ft=8.0,
+        fy_ksi=50.0,
+        table_label=None,
+        footing_diameter_in=10.0,
+        footing_embedment_in=24.0,
+    ),
+    "2_7_8_S80": PostType(
+        key="2_7_8_S80",
+        label='2-7/8" Sch80',
+        group="IC_PIPE",
+        od_in=2.875,
+        wall_in=0.276,
+        height_base_ft=6.0,
+        spacing_base_ft=10.0,
+        fy_ksi=50.0,
+        table_label=None,
+        footing_diameter_in=12.0,
+        footing_embedment_in=30.0,
+    ),
+    "3_1_2_S80": PostType(
+        key="3_1_2_S80",
+        label='3-1/2" Sch80',
+        group="IC_PIPE",
+        od_in=3.500,
+        wall_in=0.300,
+        height_base_ft=8.0,
+        spacing_base_ft=10.0,
+        fy_ksi=50.0,
+        table_label=None,
+        footing_diameter_in=16.0,
+        footing_embedment_in=36.0,
+    ),
+    "4_0_S80": PostType(
+        key="4_0_S80",
+        label='4" Sch80',
+        group="IC_PIPE",
+        od_in=4.000,
+        wall_in=0.318,
+        height_base_ft=8.0,
+        spacing_base_ft=10.0,
+        fy_ksi=50.0,
+        table_label=None,
+        footing_diameter_in=18.0,
+        footing_embedment_in=42.0,
+    ),
     # ── C-shapes (Group II) ──────────────────────────────────────
     # Retained for backward compatibility.  Section moduli are not
     # populated so bending checks are skipped for these profiles.
@@ -409,13 +464,52 @@ def _load_ws_tables(ws_mph: int) -> dict[PostGroup, dict[str, dict[float, float]
     try:
         with path.open(newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
-            _rows = list(reader)
+            rows = list(reader)
 
-        # CSV parsing is not yet implemented.  When populated, this
-        # should parse the manufacturer's spacing tables (height vs
-        # post size -> max spacing) and return them grouped by
-        # PostGroup.  Until then, all lookups fall through to the
-        # Cf1/Cf2-based calculation in compute_max_spacing_cf().
+        if len(rows) < 2:
+            return tables
+
+        # Parse header: Group, Post Label, height1, height2, ...
+        header = rows[0]
+        height_cols: list[float] = []
+        for col_val in header[2:]:
+            try:
+                height_cols.append(float(col_val.strip()))
+            except (ValueError, TypeError):
+                height_cols.append(0.0)
+
+        # Parse data rows
+        for row in rows[1:]:
+            if len(row) < 3:
+                continue
+            group_str = row[0].strip()
+            label_str = row[1].strip()
+
+            # Match group
+            group: PostGroup | None = None
+            for g in ("IA_REG", "IA_HIGH", "IC_PIPE", "II_CSHAPE"):
+                if group_str.upper() == g:
+                    group = g  # type: ignore[assignment]
+                    break
+            if group is None:
+                continue
+
+            spacing_map: dict[float, float] = {}
+            for i, col_val in enumerate(row[2:]):
+                if i >= len(height_cols):
+                    break
+                h = height_cols[i]
+                val = col_val.strip()
+                if val and val != "-":
+                    try:
+                        spacing_map[h] = float(val)
+                    except ValueError:
+                        continue
+
+            if spacing_map:
+                if label_str not in tables[group]:
+                    tables[group][label_str] = {}
+                tables[group][label_str].update(spacing_map)
 
     except Exception:
         # If parsing fails, return empty tables (Cf1/Cf2 fallback)
@@ -467,6 +561,63 @@ def compute_max_spacing_from_tables(
     return spacing
 
 
+def moment_of_inertia_pipe(od_in: float, wall_in: float) -> float:
+    """Moment of inertia I (in^4) for hollow circular tube."""
+    d_outer = od_in
+    d_inner = od_in - 2 * wall_in
+    return math.pi * (d_outer**4 - d_inner**4) / 64.0
+
+
+def compute_deflection_check(
+    post_key: str,
+    height_ft: float,
+    load_per_post_lb: float,
+    deflection_limit_ratio: float = 60.0,
+) -> tuple[float, float, bool]:
+    """Check post deflection under wind load (serviceability).
+
+    For a cantilever with uniformly distributed load::
+
+        delta_max = P * L^3 / (8 * E * I)
+
+    where P = total tributary wind force, L = post height.
+
+    Parameters
+    ----------
+    post_key : str
+        Catalog key for the post.
+    height_ft : float
+        Post height above grade in feet.
+    load_per_post_lb : float
+        Total tributary wind force on the post (lb).
+    deflection_limit_ratio : float
+        Allowable deflection = L / ratio. Default 60 (L/60).
+
+    Returns
+    -------
+    tuple[float, float, bool]
+        ``(deflection_in, allowable_in, is_ok)``
+    """
+    post = POST_TYPES[post_key]
+
+    if post.od_in is None or post.wall_in is None:
+        return (0.0, 0.0, True)
+
+    I_in4 = moment_of_inertia_pipe(post.od_in, post.wall_in)  # noqa: N806
+    if I_in4 <= 0:
+        return (0.0, 0.0, True)
+
+    E_psi = 29_000_000.0  # Steel modulus of elasticity  # noqa: N806
+    L_in = height_ft * 12.0  # noqa: N806
+
+    # Deflection at top of cantilever with uniform distributed load
+    delta = load_per_post_lb * L_in**3 / (8.0 * E_psi * I_in4)
+
+    allowable = L_in / deflection_limit_ratio
+
+    return (round(delta, 3), round(allowable, 3), delta <= allowable)
+
+
 def get_pipe_post_keys() -> list[str]:
     """Return catalog keys for pipe posts only (IC_PIPE group), ordered by size."""
     return [k for k, p in POST_TYPES.items() if p.group == "IC_PIPE"]
@@ -480,11 +631,13 @@ __all__ = [
     "PostGroup",
     "PostType",
     "bending_capacity_lb_in",
+    "compute_deflection_check",
     "compute_max_spacing_cf",
     "compute_max_spacing_from_tables",
     "compute_moment_check",
     "get_cf1",
     "get_pipe_post_keys",
+    "moment_of_inertia_pipe",
     "section_modulus_pipe",
 ]
 

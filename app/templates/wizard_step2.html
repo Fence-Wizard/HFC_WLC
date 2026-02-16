@@ -152,6 +152,74 @@
       </span>
     </div>
 
+    <details style="margin-top: 1rem;">
+      <summary style="font-weight: 600; cursor: pointer;">Footing &amp; Gate Options</summary>
+      <div class="detail-content" style="margin-top: 0.75rem;">
+        <div class="form-group">
+          <label for="embedment_depth_in">Embedment Depth Override (inches)</label>
+          <input
+            type="number"
+            id="embedment_depth_in"
+            name="embedment_depth_in"
+            step="1"
+            min="12"
+            max="120"
+            value="{{ data.embedment_depth_in or '' }}"
+            placeholder="Leave blank for catalog default"
+          />
+          <span class="form-hint">
+            Override the default embedment depth from the post catalog.
+            Used in the footing lateral resistance check (IBC 1807.3).
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="footing_diameter_in">Footing Diameter Override (inches)</label>
+          <input
+            type="number"
+            id="footing_diameter_in"
+            name="footing_diameter_in"
+            step="1"
+            min="6"
+            max="60"
+            value="{{ data.footing_diameter_in or '' }}"
+            placeholder="Leave blank for catalog default"
+          />
+          <span class="form-hint">
+            Override the default footing diameter. Larger footings increase
+            soil resistance and concrete volume.
+          </span>
+        </div>
+
+        <div style="display: flex; gap: 1rem;">
+          <div class="form-group" style="flex: 1;">
+            <label for="num_gates">Gate Openings</label>
+            <input
+              type="number"
+              id="num_gates"
+              name="num_gates"
+              min="0"
+              max="20"
+              value="{{ data.num_gates or '0' }}"
+            />
+            <span class="form-hint">Each gate needs 2 gate posts.</span>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="num_corners">Corner Posts</label>
+            <input
+              type="number"
+              id="num_corners"
+              name="num_corners"
+              min="0"
+              max="50"
+              value="{{ data.num_corners or '0' }}"
+            />
+            <span class="form-hint">Number of 90&deg; corners.</span>
+          </div>
+        </div>
+      </div>
+    </details>
+
     <div class="info-card">
       <strong>Understanding Post Spacing</strong>
       <p>
@@ -202,7 +270,8 @@ document.getElementById('step2Form').addEventListener('submit', function(e) {
 (function() {
   const form = document.getElementById('step2Form');
   const fields = ['height_total_ft','post_spacing_ft','fence_length_ft',
-                  'fence_type','line_post_key','terminal_post_key'];
+                  'fence_type','line_post_key','terminal_post_key',
+                  'embedment_depth_in','footing_diameter_in','num_gates','num_corners'];
   fields.forEach(function(f) {
     const el = document.getElementById(f);
     if (!el) return;

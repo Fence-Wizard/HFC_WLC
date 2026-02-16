@@ -6,8 +6,15 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from windcalc.engine import calculate, calculate_wind_load
-from windcalc.schemas import EstimateInput, EstimateOutput, WindLoadRequest, WindLoadResult
+from windcalc.engine import calculate, calculate_project, calculate_wind_load
+from windcalc.schemas import (
+    EstimateInput,
+    EstimateOutput,
+    ProjectInput,
+    ProjectOutput,
+    WindLoadRequest,
+    WindLoadResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,5 +125,52 @@ async def list_post_types():
             }
             for p in POST_TYPES.values()
             if p.group == "IC_PIPE"
+        ]
+    }
+
+
+@v1_router.post("/project", response_model=ProjectOutput)
+async def project_estimate(request: ProjectInput):
+    """Multi-segment fence project analysis.
+
+    Accepts a project with shared wind parameters and multiple fence
+    segments. Returns per-segment results, combined quantities, and
+    overall status.
+    """
+    try:
+        return calculate_project(request)
+    except ValueError as e:
+        logger.warning("Project estimate error: %s", e)
+        raise HTTPException(status_code=400, detail=f"Project error: {e!s}") from e
+    except Exception:
+        logger.exception("Unexpected error during project estimate")
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred"
+        ) from None
+
+
+@v1_router.get("/wind-speed-lookup")
+async def wind_speed_lookup(zip_code: str, risk_category: str = "II"):
+    """Look up approximate ASCE 7-22 wind speed from ZIP code."""
+    from windcalc.wind_speed_lookup import lookup_wind_speed
+
+    speed, region = lookup_wind_speed(zip_code, risk_category)
+    return {
+        "zip_code": zip_code,
+        "risk_category": risk_category,
+        "wind_speed_mph": speed,
+        "region": region,
+    }
+
+
+@v1_router.get("/soil-classes")
+async def list_soil_classes():
+    """List available soil classes for footing checks."""
+    from windcalc.footing import SOIL_CLASSES
+
+    return {
+        "soil_classes": [
+            {"key": k, "label": label, "lateral_bearing_psf_per_ft": value}
+            for k, (label, value) in SOIL_CLASSES.items()
         ]
     }

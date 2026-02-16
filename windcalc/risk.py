@@ -101,6 +101,31 @@ def classify_risk(
             )
             details["advanced_reasons"].append(msg)
 
+    # ── Footing check ─────────────────────────────────────────────────
+    for role_name, block in [("Line", out.line), ("Terminal", out.terminal)]:
+        if block.footing and not block.footing.footing_ok:
+            msg = (
+                f"{role_name} footing SF = {block.footing.safety_factor:.2f} "
+                f"(need ≥ 1.50). Min embedment: "
+                f"{block.footing.min_embedment_ft:.1f} ft."
+            )
+            details["reasons"].append(msg)
+        elif block.footing and block.footing.safety_factor < 2.0:
+            msg = (
+                f"{role_name} footing SF = {block.footing.safety_factor:.2f} "
+                f"(adequate but marginal)."
+            )
+            details["advanced_reasons"].append(msg)
+
+    # ── Deflection check ──────────────────────────────────────────────
+    for role_name, block in [("Line", out.line), ("Terminal", out.terminal)]:
+        if block.deflection and not block.deflection.deflection_ok:
+            msg = (
+                f"{role_name} deflection {block.deflection.deflection_in:.2f} in "
+                f"exceeds L/60 limit ({block.deflection.allowable_in:.2f} in)."
+            )
+            details["advanced_reasons"].append(msg)
+
     return status, details
 
 
