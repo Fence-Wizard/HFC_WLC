@@ -30,44 +30,38 @@
 
 {% block content %}
 
-<!-- ===== Overall Status Banner ===== -->
-{% set status_class = {
-  "GREEN": "status-green",
-  "YELLOW": "status-yellow",
-  "RED": "status-red"
-}.get(result.overall_status, "status-green") %}
-
-{% set status_icon = {
-  "GREEN": "&#10004;",
-  "YELLOW": "&#9888;",
-  "RED": "&#10060;"
-}.get(result.overall_status, "&#10004;") %}
-
-{% set status_title = {
-  "GREEN": "Within Limits",
-  "YELLOW": "Marginal - Review Carefully",
-  "RED": "Exceeds Limits - Action Required"
-}.get(result.overall_status, "Results") %}
-
-{% set status_desc = {
-  "GREEN": "The requested post spacing is within the allowable limits for the selected wind speed and exposure.",
-  "YELLOW": "The requested configuration is near the edge of allowable limits. Consider reducing post spacing or using heavier posts.",
-  "RED": "The requested post spacing exceeds the allowable maximum. Reduce spacing, increase post size, or consult the project engineer."
-}.get(result.overall_status, "") %}
-
-<div class="status-banner {{ status_class }}">
-  <span class="status-icon">{{ status_icon }}</span>
+<!-- ===== Status Banner ===== -->
+{% if result.overall_status == "GREEN" %}
+<div class="status-banner status-green">
+  <span class="status-icon" style="font-size: 1.8rem;">&#x2705;</span>
   <div class="status-body">
-    <h3>{{ status_title }}</h3>
-    <p>{{ status_desc }}</p>
+    <h3>Within Limits</h3>
+    <p>Post spacing and structural checks are within allowable limits.</p>
   </div>
 </div>
+{% elif result.overall_status == "YELLOW" %}
+<div class="status-banner status-yellow">
+  <span class="status-icon" style="font-size: 1.8rem;">&#x26A0;&#xFE0F;</span>
+  <div class="status-body">
+    <h3>Marginal &mdash; Review Carefully</h3>
+    <p>Near the edge of allowable limits. Consider reducing spacing or using heavier posts.</p>
+  </div>
+</div>
+{% else %}
+<div class="status-banner status-red">
+  <span class="status-icon" style="font-size: 1.8rem;">&#x274C;</span>
+  <div class="status-body">
+    <h3>Exceeds Limits &mdash; Action Required</h3>
+    <p>Reduce spacing, increase post size, or consult the project engineer.</p>
+  </div>
+</div>
+{% endif %}
 
-<!-- ===== Quick Summary Tiles ===== -->
+<!-- ===== Summary Tiles ===== -->
 <div class="results-grid">
   <div class="result-tile">
     <div class="result-value">{{ "%.1f"|format(result.shared.pressure_psf) }}</div>
-    <div class="result-label">Wind Pressure</div>
+    <div class="result-label">Pressure</div>
     <div class="result-unit">psf</div>
   </div>
   <div class="result-tile">
@@ -87,557 +81,348 @@
   </div>
 </div>
 
-<!-- ===== Input Parameters Card ===== -->
+<!-- ===== Post Recommendations (single clean card) ===== -->
 <div class="card">
-  <div class="card-header">
-    <h2>Input Parameters</h2>
+  <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
+    <h2>Post Recommendations</h2>
     {% if data.project_name %}
     <p>{{ data.project_name }}{% if data.location %} &mdash; {{ data.location }}{% endif %}</p>
     {% endif %}
   </div>
-  <table class="data-table">
-    <tr>
-      <td>Wind Speed</td>
-      <td>{{ data.wind_speed_mph }} mph</td>
-    </tr>
-    <tr>
-      <td>Exposure Category</td>
-      <td>{{ data.exposure }}</td>
-    </tr>
-    <tr>
-      <td>Risk Category</td>
-      <td>{{ data.risk_category }}</td>
-    </tr>
-    <tr>
-      <td>Fence Height</td>
-      <td>{{ data.height_total_ft }} ft</td>
-    </tr>
-    <tr>
-      <td>Post Spacing</td>
-      <td>{{ data.post_spacing_ft }} ft</td>
-    </tr>
-    {% if data.fence_type %}
-    <tr>
-      <td>Fence Type</td>
-      <td>{{ data.fence_type | replace("_", " ") | title }}</td>
-    </tr>
-    {% endif %}
-    {% if data.fence_length_ft %}
-    <tr>
-      <td>Fence Run Length</td>
-      <td>{{ data.fence_length_ft }} ft
-        {% if result.shared.design_params %}
-        (B/s = {{ "%.1f"|format(data.fence_length_ft|float / data.height_total_ft|float) }})
+
+  <div class="post-cards-grid">
+    <!-- Line Post -->
+    <div class="post-card">
+      <div class="post-card-header post-card-line">
+        <span class="post-card-tag">Line Post</span>
+        {% if result.line.status == "GREEN" %}
+        <span class="post-card-status post-card-ok">OK</span>
+        {% elif result.line.status == "YELLOW" %}
+        <span class="post-card-status post-card-marginal">Marginal</span>
+        {% else %}
+        <span class="post-card-status post-card-fail">Over</span>
         {% endif %}
-      </td>
-    </tr>
-    {% endif %}
-    {% if data.estimator %}
-    <tr>
-      <td>Estimator</td>
-      <td>{{ data.estimator }}</td>
-    </tr>
-    {% endif %}
-  </table>
+      </div>
+      <div class="post-card-body">
+        <div class="post-card-size">{{ result.line.recommended.post_label or "Auto" }}</div>
+        <div class="post-card-detail">
+          {% if result.line.max_spacing_ft %}
+          <span>Max spacing: <b>{{ "%.1f"|format(result.line.max_spacing_ft) }} ft</b></span>
+          {% endif %}
+        </div>
+        {% if result.line.spacing_ratio is not none %}
+        <div class="utilization-bar-wrap">
+          <div class="utilization-label">Spacing</div>
+          <div class="utilization-bar">
+            {% set pct = (result.line.spacing_ratio * 100)|int %}
+            {% set bar_color = '#c62828' if pct > 100 else ('#f5a623' if pct > 85 else '#34c759') %}
+            <div class="utilization-fill" style="width: {{ [pct, 100]|min }}%; background: {{ bar_color }};"></div>
+          </div>
+          <div class="utilization-pct" style="color: {{ bar_color }};">{{ pct }}%</div>
+        </div>
+        {% endif %}
+        {% if result.line.moment_ratio is not none %}
+        <div class="utilization-bar-wrap">
+          <div class="utilization-label">Bending</div>
+          <div class="utilization-bar">
+            {% set mpct = (result.line.moment_ratio * 100)|int %}
+            {% set mbar = '#c62828' if mpct > 100 else ('#f5a623' if mpct > 85 else '#34c759') %}
+            <div class="utilization-fill" style="width: {{ [mpct, 100]|min }}%; background: {{ mbar }};"></div>
+          </div>
+          <div class="utilization-pct" style="color: {{ mbar }};">{{ mpct }}%</div>
+        </div>
+        {% endif %}
+        <div class="post-card-footing">
+          {{ result.line.recommended.footing_diameter_in|int }}" dia &times; {{ result.line.recommended.embedment_in|int }}" deep
+        </div>
+      </div>
+    </div>
+
+    <!-- Terminal Post -->
+    <div class="post-card">
+      <div class="post-card-header post-card-terminal">
+        <span class="post-card-tag">Terminal Post</span>
+        {% if result.terminal.status == "GREEN" %}
+        <span class="post-card-status post-card-ok">OK</span>
+        {% elif result.terminal.status == "YELLOW" %}
+        <span class="post-card-status post-card-marginal">Marginal</span>
+        {% else %}
+        <span class="post-card-status post-card-fail">Over</span>
+        {% endif %}
+      </div>
+      <div class="post-card-body">
+        <div class="post-card-size">{{ result.terminal.recommended.post_label or "Auto" }}</div>
+        <div class="post-card-detail">
+          {% if result.terminal.max_spacing_ft %}
+          <span>Max spacing: <b>{{ "%.1f"|format(result.terminal.max_spacing_ft) }} ft</b></span>
+          {% endif %}
+        </div>
+        {% if result.terminal.spacing_ratio is not none %}
+        <div class="utilization-bar-wrap">
+          <div class="utilization-label">Spacing</div>
+          <div class="utilization-bar">
+            {% set tpct = (result.terminal.spacing_ratio * 100)|int %}
+            {% set tbar = '#c62828' if tpct > 100 else ('#f5a623' if tpct > 85 else '#34c759') %}
+            <div class="utilization-fill" style="width: {{ [tpct, 100]|min }}%; background: {{ tbar }};"></div>
+          </div>
+          <div class="utilization-pct" style="color: {{ tbar }};">{{ tpct }}%</div>
+        </div>
+        {% endif %}
+        {% if result.terminal.moment_ratio is not none %}
+        <div class="utilization-bar-wrap">
+          <div class="utilization-label">Bending</div>
+          <div class="utilization-bar">
+            {% set tmpct = (result.terminal.moment_ratio * 100)|int %}
+            {% set tmbar = '#c62828' if tmpct > 100 else ('#f5a623' if tmpct > 85 else '#34c759') %}
+            <div class="utilization-fill" style="width: {{ [tmpct, 100]|min }}%; background: {{ tmbar }};"></div>
+          </div>
+          <div class="utilization-pct" style="color: {{ tmbar }};">{{ tmpct }}%</div>
+        </div>
+        {% endif %}
+        <div class="post-card-footing">
+          {{ result.terminal.recommended.footing_diameter_in|int }}" dia &times; {{ result.terminal.recommended.embedment_in|int }}" deep
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warnings (if any, collapsed inline) -->
+  {% set all_warnings = result.line.warnings + result.terminal.warnings %}
+  {% if all_warnings %}
+  <div style="margin-top: 1rem;">
+    {% for w in all_warnings|unique %}
+    <div class="inline-warning">{{ w }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 
-<!-- ===== ASCE 7-22 Calculation Breakdown ===== -->
-{% if result.shared.design_params %}
-{% set dp = result.shared.design_params %}
+<!-- ===== Quantities (compact) ===== -->
+{% if result.quantities %}
 <div class="card">
-  <details>
-    <summary style="font-size: 1rem; font-weight: 600; color: var(--hfc-blue-dark);">
-      ASCE 7-22 Calculation Breakdown
-    </summary>
-    <div class="detail-content" style="margin-top: 0.75rem;">
-      <p class="text-sm text-muted" style="margin-bottom: 0.75rem;">
-        <b>{{ dp.asce7_edition }}</b> &mdash; Velocity pressure and force coefficients
-        for freestanding fences and walls.
-      </p>
-
-      <h4 style="margin: 0.75rem 0 0.5rem; font-size: 0.92rem;">Velocity Pressure</h4>
-      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.5rem 0.75rem; border-radius: 4px;">
-        q<sub>z</sub> = 0.00256 &times; K<sub>z</sub> &times; K<sub>zt</sub>
-        &times; K<sub>d</sub> &times; V&sup2;
-        = 0.00256 &times; {{ "%.3f"|format(dp.kz) }}
-        &times; {{ dp.kzt }}
-        &times; {{ dp.kd }}
-        &times; {{ data.wind_speed_mph }}&sup2;
-        = <b>{{ "%.2f"|format(dp.qz_psf) }} psf</b>
-      </p>
-
-      <h4 style="margin: 0.75rem 0 0.5rem; font-size: 0.92rem;">Design Pressure</h4>
-      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.5rem 0.75rem; border-radius: 4px;">
-        p = q<sub>z</sub> &times; G &times; C<sub>f</sub>
-        = {{ "%.2f"|format(dp.qz_psf) }}
-        &times; {{ dp.g }}
-        &times; {{ "%.3f"|format(dp.cf) }}
-        = <b>{{ "%.2f"|format(result.shared.pressure_psf) }} psf</b>
-      </p>
-
-      <table class="data-table" style="margin-top: 0.75rem;">
-        <tr>
-          <td>K<sub>z</sub> (exposure coefficient)</td>
-          <td>{{ "%.4f"|format(dp.kz) }}</td>
-        </tr>
-        <tr>
-          <td>K<sub>zt</sub> (topographic factor)</td>
-          <td>{{ dp.kzt }}</td>
-        </tr>
-        <tr>
-          <td>K<sub>d</sub> (directionality factor)</td>
-          <td>{{ dp.kd }}</td>
-        </tr>
-        <tr>
-          <td>G (gust-effect factor)</td>
-          <td>{{ dp.g }}</td>
-        </tr>
-        <tr>
-          <td>C<sub>f,solid</sub> (solid wall, B/s &ge; 20)</td>
-          <td>{{ "%.3f"|format(dp.cf_solid) }}</td>
-        </tr>
-        <tr>
-          <td>Solidity ratio &epsilon;</td>
-          <td>{{ "%.2f"|format(dp.solidity) }}</td>
-        </tr>
-        <tr>
-          <td>C<sub>f</sub> (net, C<sub>f,solid</sub> &times; &epsilon;)</td>
-          <td>{{ "%.3f"|format(dp.cf) }}</td>
-        </tr>
-        <tr>
-          <td>q<sub>z</sub> (velocity pressure)</td>
-          <td>{{ "%.2f"|format(dp.qz_psf) }} psf</td>
-        </tr>
-      </table>
-
-      <p class="text-muted text-sm" style="margin-top: 0.75rem;">
-        Reference: {{ dp.asce7_edition }}, Eq. 26.10-1, Table 26.6-1,
-        Section 26.11, Figure 29.3-1.
-      </p>
+  <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
+    <h2>Material Takeoff</h2>
+    <p>{{ "%.0f"|format(result.quantities.fence_length_ft) }} LF fence run</p>
+  </div>
+  <div class="qty-grid">
+    <div class="qty-item">
+      <div class="qty-val">{{ result.quantities.total_posts }}</div>
+      <div class="qty-lbl">Total Posts</div>
     </div>
-  </details>
+    <div class="qty-item">
+      <div class="qty-val">{{ "%.0f"|format(result.quantities.top_rail_lf) }}</div>
+      <div class="qty-lbl">Top Rail (LF)</div>
+    </div>
+    <div class="qty-item">
+      <div class="qty-val">{{ "%.0f"|format(result.quantities.fabric_sf) }}</div>
+      <div class="qty-lbl">Fabric (SF)</div>
+    </div>
+    <div class="qty-item">
+      <div class="qty-val">{{ "%.1f"|format(result.quantities.total_concrete_cy) }}</div>
+      <div class="qty-lbl">Concrete (CY)</div>
+    </div>
+  </div>
+  <div class="qty-detail text-muted text-sm" style="margin-top: 0.75rem;">
+    {{ result.quantities.num_line_posts }} line
+    + {{ result.quantities.num_terminal_posts }} terminal
+    {% if result.quantities.num_corner_posts %} + {{ result.quantities.num_corner_posts }} corner{% endif %}
+    {% if result.quantities.num_gate_posts %} + {{ result.quantities.num_gate_posts }} gate{% endif %}
+  </div>
 </div>
 {% endif %}
 
-<!-- ===== Line Post Results ===== -->
-<div class="card">
-  <div class="card-header">
-    <h2>
-      <span class="tag tag-line">Line</span>
-      Line Post
-    </h2>
-    <p>Intermediate posts along the fence run.</p>
-  </div>
-
-  <div class="post-block">
-    <table class="data-table">
-      <tr>
-        <td>Recommended Post</td>
-        <td>{{ result.line.recommended.post_label or result.line.recommended.post_key or "N/A" }}</td>
-      </tr>
-      {% if result.line.max_spacing_ft %}
-      <tr>
-        <td>Max Allowable Spacing</td>
-        <td>{{ "%.2f"|format(result.line.max_spacing_ft) }} ft</td>
-      </tr>
-      {% endif %}
-      {% if result.line.spacing_ratio is not none %}
-      <tr>
-        <td>Spacing Utilization</td>
-        <td>
-          <span class="utilization-{{ 'red' if result.line.spacing_ratio > 1.0 else ('yellow' if result.line.spacing_ratio > 0.85 else 'green') }}">
-            {{ "%.0f"|format(result.line.spacing_ratio * 100) }}%
-          </span>
-        </td>
-      </tr>
-      {% endif %}
-      {% if result.line.moment_ratio is not none %}
-      <tr>
-        <td>Bending Utilization (Advisory)</td>
-        <td>{{ "%.0f"|format(result.line.moment_ratio * 100) }}%</td>
-      </tr>
-      {% endif %}
-      {% if result.line.recommended.footing_diameter_in %}
-      <tr>
-        <td>Footing Diameter</td>
-        <td>{{ result.line.recommended.footing_diameter_in }}"</td>
-      </tr>
-      {% endif %}
-      {% if result.line.recommended.embedment_in %}
-      <tr>
-        <td>Embedment Depth</td>
-        <td>{{ result.line.recommended.embedment_in }}"</td>
-      </tr>
-      {% endif %}
-      <tr>
-        <td>Status</td>
-        <td>
-          {% if result.line.status == "GREEN" %}
-          <span style="color: #1a7a35; font-weight: 600;">&#10004; OK</span>
-          {% elif result.line.status == "YELLOW" %}
-          <span style="color: #b07d00; font-weight: 600;">&#9888; Marginal</span>
-          {% else %}
-          <span style="color: var(--hfc-red); font-weight: 600;">&#10060; Exceeds</span>
-          {% endif %}
-        </td>
-      </tr>
-    </table>
-
-    {% if result.line.M_demand_ft_lb and result.line.M_allow_ft_lb %}
-    <details>
-      <summary>Bending Check (Advisory)</summary>
-      <div class="detail-content">
-        <p>
-          Uniform-load cantilever model (M = P &times; H/2):<br />
-          <b>M<sub>demand</sub></b> = {{ "%.1f"|format(result.line.M_demand_ft_lb) }} ft-lb
-          &nbsp;|&nbsp;
-          <b>M<sub>allow</sub></b> = {{ "%.1f"|format(result.line.M_allow_ft_lb) }} ft-lb
-          (Fy &times; S / &Omega;, &Omega; = 1.67)
-          &nbsp;|&nbsp;
-          <b>Utilization</b>: {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
-        </p>
-        <p class="text-muted text-sm">
-          Line posts are restrained by top rail and fabric. This cantilever
-          check is advisory only; spacing table limits govern line post status.
-          Pipe per ASTM F1083 Group IC, Fy = 50 ksi.
-        </p>
-      </div>
-    </details>
-    {% endif %}
-  </div>
-
-  {% if result.line.warnings %}
-  <ul class="warnings-list">
-    {% for w in result.line.warnings %}
-    <li>{{ w }}</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
+<!-- ===== Actions: Download + What-If ===== -->
+<div class="card" style="text-align: center;">
+  <a
+    class="btn btn-primary btn-lg"
+    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&fence_length_ft={{ data.fence_length_ft or '' }}&job_name={{ data.project_name or data.job_name or 'Job' }}&project_name={{ data.project_name or '' }}&location={{ data.location or '' }}&estimator={{ data.estimator or '' }}&soil_type={{ data.soil_type or 'default' }}&fence_type={{ data.fence_type or 'chain_link_open' }}&line_post_key={{ data.line_post_key or '' }}&terminal_post_key={{ data.terminal_post_key or '' }}&kzt={{ data.kzt or '1.0' }}"
+    style="margin-bottom: 0.75rem;"
+  >
+    Download PDF Report
+  </a>
+  <p class="text-muted text-sm" style="margin: 0;">Detailed ASCE 7-22 report for your project file.</p>
 </div>
 
-<!-- ===== Terminal Post Results ===== -->
-<div class="card">
-  <div class="card-header">
-    <h2>
-      <span class="tag tag-terminal">Terminal</span>
-      Terminal / End / Corner Post
-    </h2>
-    <p>End posts, gate posts, and corner posts.</p>
-  </div>
-
-  <div class="post-block">
-    <table class="data-table">
-      <tr>
-        <td>Recommended Post</td>
-        <td>{{ result.terminal.recommended.post_label or result.terminal.recommended.post_key or "N/A" }}</td>
-      </tr>
-      {% if result.terminal.max_spacing_ft %}
-      <tr>
-        <td>Max Allowable Spacing</td>
-        <td>{{ "%.2f"|format(result.terminal.max_spacing_ft) }} ft</td>
-      </tr>
-      {% endif %}
-      {% if result.terminal.spacing_ratio is not none %}
-      <tr>
-        <td>Spacing Utilization</td>
-        <td>
-          <span class="utilization-{{ 'red' if result.terminal.spacing_ratio > 1.0 else ('yellow' if result.terminal.spacing_ratio > 0.85 else 'green') }}">
-            {{ "%.0f"|format(result.terminal.spacing_ratio * 100) }}%
-          </span>
-        </td>
-      </tr>
-      {% endif %}
-      {% if result.terminal.moment_ratio is not none %}
-      <tr>
-        <td>Bending Utilization</td>
-        <td>
-          <span class="utilization-{{ 'red' if result.terminal.moment_ratio > 1.0 else ('yellow' if result.terminal.moment_ratio > 0.80 else 'green') }}">
-            {{ "%.0f"|format(result.terminal.moment_ratio * 100) }}%
-          </span>
-        </td>
-      </tr>
-      {% endif %}
-      {% if result.terminal.recommended.footing_diameter_in %}
-      <tr>
-        <td>Footing Diameter</td>
-        <td>{{ result.terminal.recommended.footing_diameter_in }}"</td>
-      </tr>
-      {% endif %}
-      {% if result.terminal.recommended.embedment_in %}
-      <tr>
-        <td>Embedment Depth</td>
-        <td>{{ result.terminal.recommended.embedment_in }}"</td>
-      </tr>
-      {% endif %}
-      <tr>
-        <td>Status</td>
-        <td>
-          {% if result.terminal.status == "GREEN" %}
-          <span style="color: #1a7a35; font-weight: 600;">&#10004; OK</span>
-          {% elif result.terminal.status == "YELLOW" %}
-          <span style="color: #b07d00; font-weight: 600;">&#9888; Marginal</span>
-          {% else %}
-          <span style="color: var(--hfc-red); font-weight: 600;">&#10060; Exceeds</span>
-          {% endif %}
-        </td>
-      </tr>
-    </table>
-
-    {% if result.terminal.M_demand_ft_lb and result.terminal.M_allow_ft_lb %}
-    <details>
-      <summary>Bending Check (Terminal - Cantilever)</summary>
-      <div class="detail-content">
-        <p>
-          Cantilever fixed at grade, uniform wind load (M = P &times; H/2):<br />
-          <b>M<sub>demand</sub></b> = {{ "%.1f"|format(result.terminal.M_demand_ft_lb) }} ft-lb
-          &nbsp;|&nbsp;
-          <b>M<sub>allow</sub></b> = {{ "%.1f"|format(result.terminal.M_allow_ft_lb) }} ft-lb
-          (Fy &times; S / &Omega;, &Omega; = 1.67)
-          &nbsp;|&nbsp;
-          <b>Utilization</b>: {{ "%.0f"|format(result.terminal.M_demand_ft_lb / result.terminal.M_allow_ft_lb * 100) }}%
-        </p>
-        {% if not result.terminal.moment_ok %}
-        <p class="text-red text-sm">
-          Terminal post bending demand exceeds allowable capacity.
-          Consider upgrading to a heavier pipe section.
-          Pipe per ASTM F1083 Group IC, Fy = 50 ksi.
-        </p>
-        {% endif %}
-      </div>
-    </details>
-    {% endif %}
-  </div>
-
-  {% if result.terminal.warnings %}
-  <ul class="warnings-list">
-    {% for w in result.terminal.warnings %}
-    <li>{{ w }}</li>
-    {% endfor %}
-  </ul>
-  {% endif %}
-</div>
-
-<!-- ===== Footing & Deflection Checks ===== -->
-{% if result.terminal.footing or result.line.footing %}
+<!-- ===== What-If Slider (compact) ===== -->
 <div class="card">
   <details>
-    <summary style="font-size: 1rem; font-weight: 600; color: var(--hfc-blue-dark);">
-      Footing &amp; Deflection Checks
+    <summary style="font-size: 0.95rem; font-weight: 600; color: var(--hfc-blue-dark);">
+      Quick What-If
     </summary>
     <div class="detail-content" style="margin-top: 0.75rem;">
-      {% for role_name, block in [("Line", result.line), ("Terminal", result.terminal)] %}
-      {% if block.footing %}
-      <h4 style="margin: 0.75rem 0 0.5rem;">{{ role_name }} Post Footing (IBC 1807.3)</h4>
-      <table class="data-table">
-        <tr>
-          <td>Soil Class</td>
-          <td>{{ block.footing.soil_label }}</td>
+      <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 180px;">
+          <label class="text-sm" style="font-weight: 600;">Spacing: <span id="whatif_spacing_val">{{ data.post_spacing_ft }}</span> ft</label>
+          <input type="range" id="whatif_spacing" min="4" max="20" step="0.5"
+                 value="{{ data.post_spacing_ft }}" style="width: 100%;"
+                 oninput="document.getElementById('whatif_spacing_val').textContent = this.value; runWhatIf();" />
+        </div>
+        <div style="flex: 1; min-width: 180px;">
+          <label class="text-sm" style="font-weight: 600;">Height: <span id="whatif_height_val">{{ data.height_total_ft }}</span> ft</label>
+          <input type="range" id="whatif_height" min="4" max="20" step="0.5"
+                 value="{{ data.height_total_ft }}" style="width: 100%;"
+                 oninput="document.getElementById('whatif_height_val').textContent = this.value; runWhatIf();" />
+        </div>
+      </div>
+      <div id="whatif_result" style="margin-top: 0.6rem; padding: 0.6rem 0.75rem; background: var(--hfc-bg); border-radius: 6px; display: none; font-size: 0.9rem;">
+        <span id="wi_pressure">-</span> psf &nbsp;|&nbsp;
+        <b id="wi_status" style="font-weight: 700;">-</b> &nbsp;|&nbsp;
+        Bay: <span id="wi_load">-</span> lb &nbsp;|&nbsp;
+        Post: <span id="wi_perpost">-</span> lb
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- ===== Engineering Details (all collapsed) ===== -->
+<div class="card">
+  <details>
+    <summary style="font-size: 0.95rem; font-weight: 600; color: var(--hfc-blue-dark);">
+      Engineering Details
+    </summary>
+    <div class="detail-content" style="margin-top: 0.75rem;">
+
+      <!-- Input summary -->
+      <h4 style="margin: 0.5rem 0; font-size: 0.88rem; color: var(--hfc-black);">Input Parameters</h4>
+      <table class="data-table" style="font-size: 0.85rem;">
+        <tr><td>Wind Speed</td><td>{{ data.wind_speed_mph }} mph</td></tr>
+        <tr><td>Exposure</td><td>{{ data.exposure }}</td></tr>
+        <tr><td>Risk Category</td><td>{{ data.risk_category }}</td></tr>
+        <tr><td>Fence Height</td><td>{{ data.height_total_ft }} ft</td></tr>
+        <tr><td>Post Spacing</td><td>{{ data.post_spacing_ft }} ft</td></tr>
+        <tr><td>Fence Type</td><td>{{ data.fence_type | replace("_", " ") | title }}</td></tr>
+        {% if data.fence_length_ft %}
+        <tr><td>Run Length</td>
+          <td>{{ data.fence_length_ft }} ft
+            (B/s = {{ "%.1f"|format(data.fence_length_ft|float / data.height_total_ft|float) }})
+          </td>
         </tr>
-        <tr>
-          <td>Footing Diameter</td>
-          <td>{{ block.footing.footing_diameter_in }}"</td>
-        </tr>
-        <tr>
-          <td>Actual Embedment</td>
-          <td>{{ "%.1f"|format(block.footing.actual_embedment_ft) }} ft ({{ "%.0f"|format(block.footing.actual_embedment_ft * 12) }}")</td>
-        </tr>
-        <tr>
-          <td>Min Required Embedment</td>
-          <td>{{ "%.1f"|format(block.footing.min_embedment_ft) }} ft ({{ "%.0f"|format(block.footing.min_embedment_ft * 12) }}")</td>
-        </tr>
-        <tr>
-          <td>Overturning Moment</td>
-          <td>{{ "%.1f"|format(block.footing.overturning_moment_ft_lb) }} ft-lb</td>
-        </tr>
-        <tr>
-          <td>Resisting Moment</td>
-          <td>{{ "%.1f"|format(block.footing.resisting_moment_ft_lb) }} ft-lb</td>
-        </tr>
-        <tr>
-          <td>Safety Factor</td>
+        {% endif %}
+        {% if data.estimator %}<tr><td>Estimator</td><td>{{ data.estimator }}</td></tr>{% endif %}
+      </table>
+
+      <!-- ASCE 7 breakdown -->
+      {% if result.shared.design_params %}
+      {% set dp = result.shared.design_params %}
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">ASCE 7-22 Calculation</h4>
+      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.4rem;">
+        q<sub>z</sub> = 0.00256 &times; {{ "%.3f"|format(dp.kz) }}
+        &times; {{ dp.kzt }} &times; {{ dp.kd }}
+        &times; {{ data.wind_speed_mph }}&sup2;
+        = <b>{{ "%.2f"|format(dp.qz_psf) }} psf</b>
+      </p>
+      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.4rem 0.6rem; border-radius: 4px;">
+        p = {{ "%.2f"|format(dp.qz_psf) }} &times; {{ dp.g }}
+        &times; {{ "%.3f"|format(dp.cf) }}
+        = <b>{{ "%.2f"|format(result.shared.pressure_psf) }} psf</b>
+      </p>
+      <table class="data-table" style="font-size: 0.82rem; margin-top: 0.5rem;">
+        <tr><td>K<sub>z</sub></td><td>{{ "%.4f"|format(dp.kz) }}</td></tr>
+        <tr><td>K<sub>zt</sub></td><td>{{ dp.kzt }}</td></tr>
+        <tr><td>K<sub>d</sub></td><td>{{ dp.kd }}</td></tr>
+        <tr><td>G</td><td>{{ dp.g }}</td></tr>
+        <tr><td>C<sub>f,solid</sub></td><td>{{ "%.3f"|format(dp.cf_solid) }}</td></tr>
+        <tr><td>Solidity &epsilon;</td><td>{{ "%.2f"|format(dp.solidity) }}</td></tr>
+        <tr><td>C<sub>f</sub></td><td>{{ "%.3f"|format(dp.cf) }}</td></tr>
+      </table>
+      {% endif %}
+
+      <!-- Bending checks -->
+      {% for rname, blk in [("Line", result.line), ("Terminal", result.terminal)] %}
+      {% if blk.M_demand_ft_lb and blk.M_allow_ft_lb %}
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">{{ rname }} Bending Check</h4>
+      <table class="data-table" style="font-size: 0.82rem;">
+        <tr><td>M<sub>demand</sub></td><td>{{ "%.1f"|format(blk.M_demand_ft_lb) }} ft-lb</td></tr>
+        <tr><td>M<sub>allow</sub></td><td>{{ "%.1f"|format(blk.M_allow_ft_lb) }} ft-lb</td></tr>
+        <tr><td>Utilization</td><td>{{ "%.0f"|format(blk.M_demand_ft_lb / blk.M_allow_ft_lb * 100) }}%</td></tr>
+      </table>
+      {% endif %}
+      {% endfor %}
+
+      <!-- Footing checks -->
+      {% for rname, blk in [("Line", result.line), ("Terminal", result.terminal)] %}
+      {% if blk.footing %}
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">{{ rname }} Footing (IBC 1807.3)</h4>
+      <table class="data-table" style="font-size: 0.82rem;">
+        <tr><td>Soil</td><td>{{ blk.footing.soil_label }}</td></tr>
+        <tr><td>Embedment</td><td>{{ "%.1f"|format(blk.footing.actual_embedment_ft) }} ft</td></tr>
+        <tr><td>Min Required</td><td>{{ "%.1f"|format(blk.footing.min_embedment_ft) }} ft</td></tr>
+        <tr><td>Safety Factor</td>
           <td>
-            <span class="utilization-{{ 'red' if block.footing.safety_factor < 1.5 else ('yellow' if block.footing.safety_factor < 2.0 else 'green') }}">
-              {{ "%.2f"|format(block.footing.safety_factor) }}
+            <span class="utilization-{{ 'red' if blk.footing.safety_factor < 1.5 else ('yellow' if blk.footing.safety_factor < 2.0 else 'green') }}">
+              {{ "%.2f"|format(blk.footing.safety_factor) }}
             </span>
             (need &ge; 1.50)
           </td>
         </tr>
-        <tr>
-          <td>Concrete Volume</td>
-          <td>{{ "%.2f"|format(block.footing.concrete_volume_cf) }} cf</td>
-        </tr>
       </table>
       {% endif %}
+      {% endfor %}
 
-      {% if block.deflection %}
-      <h4 style="margin: 0.75rem 0 0.5rem;">{{ role_name }} Post Deflection (Serviceability)</h4>
-      <table class="data-table">
-        <tr>
-          <td>Calculated Deflection</td>
-          <td>{{ "%.3f"|format(block.deflection.deflection_in) }}"</td>
-        </tr>
-        <tr>
-          <td>Allowable (L/60)</td>
-          <td>{{ "%.3f"|format(block.deflection.allowable_in) }}"</td>
-        </tr>
-        <tr>
-          <td>Utilization</td>
+      <!-- Deflection checks -->
+      {% for rname, blk in [("Line", result.line), ("Terminal", result.terminal)] %}
+      {% if blk.deflection and blk.deflection.deflection_in > 0 %}
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">{{ rname }} Deflection (L/60)</h4>
+      <table class="data-table" style="font-size: 0.82rem;">
+        <tr><td>Deflection</td><td>{{ "%.3f"|format(blk.deflection.deflection_in) }}"</td></tr>
+        <tr><td>Allowable</td><td>{{ "%.3f"|format(blk.deflection.allowable_in) }}"</td></tr>
+        <tr><td>Utilization</td>
           <td>
-            <span class="utilization-{{ 'red' if not block.deflection.deflection_ok else ('yellow' if block.deflection.ratio > 0.85 else 'green') }}">
-              {{ "%.0f"|format(block.deflection.ratio * 100) }}%
+            <span class="utilization-{{ 'red' if not blk.deflection.deflection_ok else 'green' }}">
+              {{ "%.0f"|format(blk.deflection.ratio * 100) }}%
             </span>
           </td>
         </tr>
       </table>
       {% endif %}
       {% endfor %}
-    </div>
-  </details>
-</div>
-{% endif %}
 
-<!-- ===== Material Quantities ===== -->
-{% if result.quantities %}
-<div class="card">
-  <div class="card-header">
-    <h2>Material Quantity Takeoff</h2>
-    <p>Estimated quantities for {{ "%.0f"|format(result.quantities.fence_length_ft) }} ft fence run.</p>
-  </div>
-  <table class="data-table">
-    <tr><td>Total Fence Length</td><td>{{ "%.0f"|format(result.quantities.fence_length_ft) }} ft</td></tr>
-    <tr><td>Line Posts</td><td>{{ result.quantities.num_line_posts }}</td></tr>
-    <tr><td>Terminal Posts</td><td>{{ result.quantities.num_terminal_posts }}</td></tr>
-    {% if result.quantities.num_corner_posts > 0 %}
-    <tr><td>Corner Posts</td><td>{{ result.quantities.num_corner_posts }}</td></tr>
-    {% endif %}
-    {% if result.quantities.num_gate_posts > 0 %}
-    <tr><td>Gate Posts</td><td>{{ result.quantities.num_gate_posts }}</td></tr>
-    {% endif %}
-    <tr><td><b>Total Posts</b></td><td><b>{{ result.quantities.total_posts }}</b></td></tr>
-    <tr><td>Top Rail</td><td>{{ "%.0f"|format(result.quantities.top_rail_lf) }} LF</td></tr>
-    <tr><td>Fabric</td><td>{{ "%.0f"|format(result.quantities.fabric_sf) }} SF</td></tr>
-    <tr><td>Total Concrete</td><td>{{ "%.1f"|format(result.quantities.total_concrete_cf) }} CF ({{ "%.2f"|format(result.quantities.total_concrete_cy) }} CY)</td></tr>
-    <tr><td>Line Post Length (ea.)</td><td>{{ "%.1f"|format(result.quantities.line_post_length_ft) }} ft</td></tr>
-    <tr><td>Terminal Post Length (ea.)</td><td>{{ "%.1f"|format(result.quantities.terminal_post_length_ft) }} ft</td></tr>
-  </table>
-</div>
-{% endif %}
-
-<!-- ===== What-If Panel ===== -->
-<div class="card" id="whatif-panel">
-  <div class="card-header">
-    <h2>What-If Analysis</h2>
-    <p>Adjust parameters to see how they affect the result. Changes update in real time.</p>
-  </div>
-  <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-    <div class="form-group" style="flex: 1; min-width: 200px;">
-      <label for="whatif_spacing">Post Spacing (ft)</label>
-      <input type="range" id="whatif_spacing" min="4" max="20" step="0.5"
-             value="{{ data.post_spacing_ft }}"
-             oninput="document.getElementById('whatif_spacing_val').textContent = this.value; runWhatIf();" />
-      <span id="whatif_spacing_val" style="font-weight: 600;">{{ data.post_spacing_ft }}</span> ft
-    </div>
-    <div class="form-group" style="flex: 1; min-width: 200px;">
-      <label for="whatif_height">Fence Height (ft)</label>
-      <input type="range" id="whatif_height" min="4" max="20" step="0.5"
-             value="{{ data.height_total_ft }}"
-             oninput="document.getElementById('whatif_height_val').textContent = this.value; runWhatIf();" />
-      <span id="whatif_height_val" style="font-weight: 600;">{{ data.height_total_ft }}</span> ft
-    </div>
-  </div>
-  <div id="whatif_result" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--hfc-bg); border-radius: 6px; display: none;">
-    <p style="margin: 0;"><b>Updated:</b> <span id="wi_pressure">-</span> psf |
-    <span id="wi_status" style="font-weight: 700;">-</span> |
-    Bay load: <span id="wi_load">-</span> lb |
-    Per post: <span id="wi_perpost">-</span> lb</p>
-  </div>
-</div>
-
-<!-- ===== Risk Details (if any) ===== -->
-{% if risk_details and risk_details.reasons %}
-<div class="card">
-  <div class="card-header">
-    <h2>Assessment Details</h2>
-  </div>
-  <ul class="warnings-list">
-    {% for reason in risk_details.reasons %}
-    <li>{{ reason }}</li>
-    {% endfor %}
-  </ul>
-  {% if risk_details.advanced_reasons %}
-  <details>
-    <summary>Advanced Notes</summary>
-    <div class="detail-content">
-      <ul>
-        {% for ar in risk_details.advanced_reasons %}
-        <li>{{ ar }}</li>
+      <!-- Assumptions -->
+      {% if result.line.assumptions %}
+      <h4 style="margin: 1rem 0 0.5rem; font-size: 0.88rem; color: var(--hfc-black);">Assumptions</h4>
+      <ul style="font-size: 0.82rem; padding-left: 1rem;">
+        {% for a in result.line.assumptions %}
+        <li style="margin-bottom: 0.3rem;">{{ a }}</li>
         {% endfor %}
       </ul>
+      {% endif %}
     </div>
   </details>
-  {% endif %}
 </div>
-{% endif %}
 
-<!-- ===== Assumptions ===== -->
-{% set all_assumptions = result.line.assumptions %}
-{% if all_assumptions %}
+<!-- ===== Saved Scenarios (compact) ===== -->
 <div class="card">
   <details>
-    <summary>Assumptions &amp; Notes</summary>
-    <div class="detail-content">
-      <ul>
-        {% for a in all_assumptions %}
-        <li>{{ a }}</li>
-        {% endfor %}
-      </ul>
+    <summary style="font-size: 0.95rem; font-weight: 600; color: var(--hfc-blue-dark);">
+      Save &amp; Compare Scenarios
+    </summary>
+    <div class="detail-content" style="margin-top: 0.75rem;">
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+        <input type="text" id="scenario_name" placeholder="Scenario name"
+               style="flex: 1; padding: 0.35rem 0.5rem; border: 1px solid var(--hfc-border, #d0d8de); border-radius: 4px; font-size: 0.88rem;" />
+        <button type="button" class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.88rem;" onclick="saveScenario()">Save</button>
+      </div>
+      <div id="saved_scenarios_list" style="font-size: 0.85rem;"></div>
     </div>
   </details>
-</div>
-{% endif %}
-
-<!-- ===== Download PDF ===== -->
-<div class="download-section">
-  <p>Generate a detailed PDF report with these results for your project file.</p>
-  <a
-    class="btn btn-primary btn-lg"
-    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&fence_length_ft={{ data.fence_length_ft or '' }}&job_name={{ data.project_name or data.job_name or 'Job' }}&project_name={{ data.project_name or '' }}&location={{ data.location or '' }}&estimator={{ data.estimator or '' }}&soil_type={{ data.soil_type or 'default' }}&fence_type={{ data.fence_type or 'chain_link_open' }}&line_post_key={{ data.line_post_key or '' }}&terminal_post_key={{ data.terminal_post_key or '' }}&kzt={{ data.kzt or '1.0' }}"
-  >
-    Download PDF Report
-  </a>
-</div>
-
-<!-- ===== Save / Compare Scenarios ===== -->
-<div class="card" id="scenarios-panel">
-  <div class="card-header">
-    <h2>Saved Scenarios</h2>
-    <p>Save the current result for comparison, or load a previous scenario.</p>
-  </div>
-  <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-    <input type="text" id="scenario_name" placeholder="Scenario name (e.g. Option A)"
-           style="flex: 1; padding: 0.4rem 0.6rem; border: 1px solid var(--hfc-border); border-radius: 4px;" />
-    <button type="button" class="btn btn-primary" onclick="saveScenario()">Save</button>
-  </div>
-  <div id="saved_scenarios_list" style="font-size: 0.9rem;"></div>
 </div>
 
 <!-- ===== Start Over ===== -->
-<div class="text-center mt-2">
+<div class="text-center mt-2" style="margin-bottom: 1rem;">
   <a href="/" class="btn btn-secondary">Start New Estimate</a>
 </div>
 
 <script>
-// What-If live analysis
 var _wiTimer = null;
 function runWhatIf() {
   clearTimeout(_wiTimer);
   _wiTimer = setTimeout(function() {
-    var spacing = document.getElementById('whatif_spacing').value;
-    var height = document.getElementById('whatif_height').value;
-    var payload = {
+    var s = document.getElementById('whatif_spacing').value;
+    var h = document.getElementById('whatif_height').value;
+    var body = {
       wind_speed_mph: {{ data.wind_speed_mph }},
-      height_total_ft: parseFloat(height),
-      post_spacing_ft: parseFloat(spacing),
+      height_total_ft: parseFloat(h),
+      post_spacing_ft: parseFloat(s),
       exposure: "{{ data.exposure }}",
       fence_type: "{{ data.fence_type or 'chain_link_open' }}",
       risk_category: "{{ data.risk_category }}",
@@ -645,87 +430,47 @@ function runWhatIf() {
     };
     var lk = "{{ data.line_post_key or '' }}";
     var tk = "{{ data.terminal_post_key or '' }}";
-    if (lk && lk !== 'auto') payload.line_post_key = lk;
-    if (tk && tk !== 'auto') payload.terminal_post_key = tk;
-
-    fetch('/api/v1/estimate', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      document.getElementById('whatif_result').style.display = 'block';
-      document.getElementById('wi_pressure').textContent = d.shared.pressure_psf.toFixed(1);
-      document.getElementById('wi_load').textContent = d.shared.total_load_lb.toFixed(0);
-      document.getElementById('wi_perpost').textContent = d.shared.load_per_post_lb.toFixed(0);
-      var st = d.overall_status;
-      var stEl = document.getElementById('wi_status');
-      stEl.textContent = st;
-      stEl.style.color = st === 'GREEN' ? '#1a7a35' : (st === 'YELLOW' ? '#b07d00' : '#c62828');
-    })
-    .catch(function() {});
+    if (lk && lk !== 'auto') body.line_post_key = lk;
+    if (tk && tk !== 'auto') body.terminal_post_key = tk;
+    fetch('/api/v1/estimate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      document.getElementById('whatif_result').style.display='block';
+      document.getElementById('wi_pressure').textContent=d.shared.pressure_psf.toFixed(1);
+      document.getElementById('wi_load').textContent=d.shared.total_load_lb.toFixed(0);
+      document.getElementById('wi_perpost').textContent=d.shared.load_per_post_lb.toFixed(0);
+      var st=d.overall_status, el=document.getElementById('wi_status');
+      el.textContent=st;
+      el.style.color=st==='GREEN'?'#1a7a35':(st==='YELLOW'?'#b07d00':'#c62828');
+    }).catch(function(){});
   }, 300);
 }
-
-// Save / Compare Scenarios (localStorage)
-function saveScenario() {
-  var name = document.getElementById('scenario_name').value.trim();
-  if (!name) { alert('Enter a scenario name.'); return; }
-  var scenarios = JSON.parse(localStorage.getItem('wlc_scenarios') || '[]');
-  scenarios.push({
-    name: name,
-    timestamp: new Date().toISOString(),
-    data: {
-      wind_speed_mph: {{ data.wind_speed_mph }},
-      height_total_ft: {{ data.height_total_ft }},
-      post_spacing_ft: {{ data.post_spacing_ft }},
-      exposure: "{{ data.exposure }}",
-      fence_type: "{{ data.fence_type or 'chain_link_open' }}",
-      risk_category: "{{ data.risk_category }}",
-      pressure_psf: {{ "%.2f"|format(result.shared.pressure_psf) }},
-      total_load_lb: {{ "%.2f"|format(result.shared.total_load_lb) }},
-      overall_status: "{{ result.overall_status }}",
-      line_post: "{{ result.line.recommended.post_label or 'Auto' }}",
-      terminal_post: "{{ result.terminal.recommended.post_label or 'Auto' }}"
-    }
+function saveScenario(){
+  var n=document.getElementById('scenario_name').value.trim();
+  if(!n){alert('Enter a name.');return;}
+  var sc=JSON.parse(localStorage.getItem('wlc_scenarios')||'[]');
+  sc.push({name:n,ts:new Date().toISOString(),d:{
+    ws:{{ data.wind_speed_mph }},h:{{ data.height_total_ft }},s:{{ data.post_spacing_ft }},
+    exp:"{{ data.exposure }}",p:{{ "%.2f"|format(result.shared.pressure_psf) }},
+    st:"{{ result.overall_status }}",lp:"{{ result.line.recommended.post_label or 'Auto' }}",
+    tp:"{{ result.terminal.recommended.post_label or 'Auto' }}"
+  }});
+  localStorage.setItem('wlc_scenarios',JSON.stringify(sc));
+  document.getElementById('scenario_name').value='';
+  renderSc();
+}
+function delSc(i){var sc=JSON.parse(localStorage.getItem('wlc_scenarios')||'[]');sc.splice(i,1);localStorage.setItem('wlc_scenarios',JSON.stringify(sc));renderSc();}
+function renderSc(){
+  var sc=JSON.parse(localStorage.getItem('wlc_scenarios')||'[]'),el=document.getElementById('saved_scenarios_list');
+  if(!sc.length){el.innerHTML='<p class="text-muted" style="font-size:0.82rem;">No saved scenarios.</p>';return;}
+  var h='<table class="data-table" style="font-size:0.82rem;"><tr><th style="text-align:left;">Name</th><th>Wind</th><th>Height</th><th>Pressure</th><th>Status</th><th></th></tr>';
+  sc.forEach(function(s,i){
+    var c=s.d.st==='GREEN'?'#1a7a35':(s.d.st==='YELLOW'?'#b07d00':'#c62828');
+    h+='<tr><td style="text-align:left;">'+s.name+'</td><td>'+s.d.ws+'</td><td>'+s.d.h+'</td><td>'+s.d.p+'</td><td style="color:'+c+';font-weight:600;">'+s.d.st+'</td><td><button onclick="delSc('+i+')" style="border:none;background:none;color:var(--hfc-red);cursor:pointer;">&times;</button></td></tr>';
   });
-  localStorage.setItem('wlc_scenarios', JSON.stringify(scenarios));
-  document.getElementById('scenario_name').value = '';
-  renderScenarios();
+  el.innerHTML=h+'</table>';
 }
-
-function deleteScenario(idx) {
-  var scenarios = JSON.parse(localStorage.getItem('wlc_scenarios') || '[]');
-  scenarios.splice(idx, 1);
-  localStorage.setItem('wlc_scenarios', JSON.stringify(scenarios));
-  renderScenarios();
-}
-
-function renderScenarios() {
-  var scenarios = JSON.parse(localStorage.getItem('wlc_scenarios') || '[]');
-  var el = document.getElementById('saved_scenarios_list');
-  if (!scenarios.length) {
-    el.innerHTML = '<p class="text-muted">No saved scenarios yet.</p>';
-    return;
-  }
-  var html = '<table class="data-table" style="font-size: 0.85rem;"><tr><th>Name</th><th>Wind</th><th>Height</th><th>Spacing</th><th>Pressure</th><th>Status</th><th></th></tr>';
-  scenarios.forEach(function(s, i) {
-    var sc = s.data.overall_status === 'GREEN' ? '#1a7a35' : (s.data.overall_status === 'YELLOW' ? '#b07d00' : '#c62828');
-    html += '<tr>'
-      + '<td>' + s.name + '</td>'
-      + '<td>' + s.data.wind_speed_mph + ' mph</td>'
-      + '<td>' + s.data.height_total_ft + ' ft</td>'
-      + '<td>' + s.data.post_spacing_ft + ' ft</td>'
-      + '<td>' + s.data.pressure_psf + ' psf</td>'
-      + '<td style="color:' + sc + ';font-weight:600;">' + s.data.overall_status + '</td>'
-      + '<td><button onclick="deleteScenario(' + i + ')" style="border:none;background:none;color:var(--hfc-red);cursor:pointer;font-size:0.85rem;">&#10005;</button></td>'
-      + '</tr>';
-  });
-  html += '</table>';
-  el.innerHTML = html;
-}
-renderScenarios();
+renderSc();
 </script>
 
 {% endblock %}

@@ -24,7 +24,6 @@ from windcalc.quantities import compute_segment_quantities
 from windcalc.schemas import ProjectInput, SegmentInput
 from windcalc.wind_speed_lookup import lookup_wind_speed
 
-
 # ── Tier A: Engineering Accuracy ──────────────────────────────────────
 
 
@@ -80,7 +79,7 @@ class TestFootingCheck:
             load_per_post_lb=200,
             height_above_grade_ft=6,
             footing_diameter_in=12,
-            embedment_depth_in=48,
+            embedment_depth_in=72,
             soil_class="gravel",
         )
         assert fc.footing_ok is True
@@ -98,7 +97,7 @@ class TestFootingCheck:
         assert fc.safety_factor < 1.5
 
     def test_soil_classes_all_have_values(self):
-        for key, (label, value) in SOIL_CLASSES.items():
+        for _key, (label, value) in SOIL_CLASSES.items():
             assert isinstance(label, str)
             assert value >= 0
 
@@ -128,7 +127,7 @@ class TestWindSpeedLookup:
         assert "Florida" in region
 
     def test_known_zip_midwest(self):
-        speed, region = lookup_wind_speed("60601", "II")
+        speed, _region = lookup_wind_speed("60601", "II")
         assert speed is not None
         assert speed >= 90
 
@@ -138,11 +137,11 @@ class TestWindSpeedLookup:
         assert speed_iii > speed_ii
 
     def test_invalid_zip(self):
-        speed, region = lookup_wind_speed("00", "II")
+        speed, _region = lookup_wind_speed("00", "II")
         assert speed is None
 
     def test_unknown_zip_prefix(self):
-        speed, region = lookup_wind_speed("99999", "II")
+        _speed, region = lookup_wind_speed("99999", "II")
         # May or may not be in database; should not crash
         assert isinstance(region, str)
 
@@ -327,9 +326,10 @@ class TestDeflectionCheck:
         assert d2 < d1
 
     def test_moment_of_inertia_pipe(self):
-        I = moment_of_inertia_pipe(2.375, 0.130)
-        assert I > 0
-        assert I == pytest.approx(math.pi * (2.375**4 - (2.375 - 0.26)**4) / 64, rel=1e-6)
+        inertia = moment_of_inertia_pipe(2.375, 0.130)
+        assert inertia > 0
+        expected = math.pi * (2.375**4 - (2.375 - 0.26)**4) / 64
+        assert inertia == pytest.approx(expected, rel=1e-6)
 
     def test_deflection_in_engine_output(self):
         out = calculate(EstimateInput(

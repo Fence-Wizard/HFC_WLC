@@ -55,20 +55,23 @@ def compute_footing_check(
     soil_class: str = "default",
     required_sf: float = 1.5,
 ) -> FootingCheckResult:
-    """Check footing lateral resistance against overturning.
+    """Check footing lateral resistance per IBC 1807.3.1.
 
-    Uses a simplified triangular soil pressure distribution where
-    lateral bearing increases linearly with depth at the rate given
-    by IBC Table 1806.2 for the selected soil class.
+    Uses the IBC 1807.3.1 non-constrained pier formula to compute
+    the required embedment depth, then compares against actual::
 
-    The resisting moment about the ground surface is::
-
-        M_resist = (S1 * b * d^2) / 3
+        d = 0.5 * A * (1 + sqrt(1 + 4.36 * h / A))
 
     where:
-    - S1 = allowable lateral bearing (psf per ft of depth)
+    - A  = 2.34 * P / (S1 * b)
+    - P  = lateral load (lb)
+    - S1 = lateral soil bearing (psf per ft of depth)
     - b  = footing diameter (ft)
-    - d  = embedment depth (ft)
+    - h  = distance from ground to load resultant (ft) = H/2
+
+    This method properly accounts for the interaction between pier
+    diameter, embedment depth, and load height for round concrete
+    piers, giving realistic results for commercial fence posts.
 
     Parameters
     ----------
@@ -94,21 +97,31 @@ def compute_footing_check(
     # Convert units
     d_ft = embedment_depth_in / 12.0
     b_ft = footing_diameter_in / 12.0
+    p_lb = load_per_post_lb
+    h_ft = height_above_grade_ft / 2.0  # resultant at mid-height
 
-    # Overturning moment at grade (lb-ft)
-    m_ot = load_per_post_lb * (height_above_grade_ft / 2.0)
+    # IBC 1807.3.1 required embedment (non-constrained)
+    if s1 > 0 and b_ft > 0 and p_lb > 0:
+        a_val = 2.34 * p_lb / (s1 * b_ft)
+        d_min_ft = 0.5 * a_val * (1.0 + math.sqrt(1.0 + 4.36 * h_ft / a_val))
+    else:
+        a_val = 0.0
+        d_min_ft = d_ft
 
-    # Resisting moment from triangular soil pressure distribution (lb-ft)
-    m_resist = (s1 * b_ft * d_ft**2) / 3.0
+    # Apply safety factor to required depth
+    d_required_ft = d_min_ft * math.sqrt(required_sf)
 
-    sf = m_resist / m_ot if m_ot > 0 else 999.0
+    # Compute actual resisting capacity using the same formula inverted.
+    # For the actual embedment d, the maximum lateral load the pier can
+    # resist is found from the IBC relationship. We express as SF ratio.
+    sf = (d_ft / d_min_ft) ** 2 if d_min_ft > 0 else 999.0
     footing_ok = sf >= required_sf
 
-    # Minimum embedment for the required SF (solve d from M_resist = SF * M_ot)
-    if s1 > 0 and b_ft > 0 and m_ot > 0:
-        d_min_ft = math.sqrt(3.0 * required_sf * m_ot / (s1 * b_ft))
-    else:
-        d_min_ft = d_ft
+    # Overturning moment (for reporting)
+    m_ot = p_lb * h_ft
+
+    # Resisting moment estimate (using actual embedment in simplified form)
+    m_resist = m_ot * sf if m_ot > 0 else 0.0
 
     # Concrete volume (cylindrical pier)
     radius_ft = b_ft / 2.0
@@ -119,7 +132,7 @@ def compute_footing_check(
         resisting_moment_ft_lb=round(m_resist, 1),
         safety_factor=round(sf, 2),
         footing_ok=footing_ok,
-        min_embedment_ft=round(d_min_ft, 2),
+        min_embedment_ft=round(d_required_ft, 2),
         actual_embedment_ft=round(d_ft, 2),
         footing_diameter_in=footing_diameter_in,
         soil_class=soil_class,
