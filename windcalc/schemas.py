@@ -56,6 +56,9 @@ class Recommendation(BaseModel):
     post_size: str | None = Field(
         None, description="Deprecated: legacy post size label (use post_key instead)"
     )
+    od_in: float | None = Field(None, description="Post outer diameter in inches")
+    wall_in: float | None = Field(None, description="Post wall thickness in inches")
+    fy_ksi: float | None = Field(None, description="Post yield strength in ksi")
     footing_diameter_in: float | None = Field(None, description="Footing diameter in inches")
     embedment_in: float | None = Field(None, description="Embedment depth in inches")
 

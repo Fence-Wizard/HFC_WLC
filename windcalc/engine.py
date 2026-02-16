@@ -138,6 +138,9 @@ def _build_recommendation(post_key: str, source_label: str | None = None) -> Rec
         post_key=post_key,
         post_label=label,
         post_size=label,  # legacy field mirrors the label for compatibility
+        od_in=post.od_in if post else None,
+        wall_in=post.wall_in if post else None,
+        fy_ksi=post.fy_ksi if post else None,
         footing_diameter_in=footing_dia,
         embedment_in=embedment,
     )

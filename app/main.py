@@ -271,6 +271,7 @@ async def review(
         {
             "data": data,
             "result": out,
+            "result_json": out.model_dump(),
             "risk": risk,
             "risk_details": risk_details,
             "post_options": POST_OPTIONS,
