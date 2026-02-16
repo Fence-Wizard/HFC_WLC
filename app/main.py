@@ -29,10 +29,23 @@ REPORT_DIR.mkdir(exist_ok=True)
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-POST_OPTIONS = sorted(
-    [{"key": key, "label": post.label} for key, post in POST_TYPES.items()],
-    key=lambda item: item["label"],
-)
+# Only pipe posts for the wizard (commercial chain-link focus).
+# C-shapes are retained in POST_TYPES for backward compat / API but
+# are not presented in the wizard UI.
+_PIPE_POST_KEYS = [
+    "1_7_8_PIPE",
+    "2_3_8_SS40",
+    "2_7_8_SS40",
+    "3_1_2_SS40",
+    "4_0_PIPE",
+    "6_5_8_PIPE",
+    "8_5_8_PIPE",
+]
+POST_OPTIONS = [
+    {"key": key, "label": POST_TYPES[key].label}
+    for key in _PIPE_POST_KEYS
+    if key in POST_TYPES
+]
 POST_LABELS = {key: post.label for key, post in POST_TYPES.items()}
 
 FENCE_OPTIONS = [
@@ -74,7 +87,7 @@ async def step2(
         {
             "data": data,
             "errors": [],
-            "post_keys": sorted(POST_TYPES.keys()),
+            "post_options": POST_OPTIONS,
             "fence_options": FENCE_OPTIONS,
         },
     )

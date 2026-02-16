@@ -38,10 +38,12 @@ _LEGACY_PRESSURE_MULT = 1.2
 _LEGACY_EXPOSURE: dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
 
 _LEGACY_POST_SIZE_TO_KEY: dict[str, str] = {
-    # Legacy wizard strings (kept only for backward compatibility)
-    '2-3/8" SS40': "2_3_8_SS40",
-    '2-7/8" SS40': "2_7_8_SS40",
-    '3-1/2" SS40': "3_1_2_SS40",
+    # Legacy wizard strings (kept only for backward compatibility).
+    # Current labels use '2-3/8" SS40' style; older labels had
+    # "(Line Post)" suffix or "Steel Pipe" suffix.
+    '2-3/8" SS40 (Line Post)': "2_3_8_SS40",
+    '2-7/8" SS40 (Line Post)': "2_7_8_SS40",
+    '3-1/2" SS40 (Line Post)': "3_1_2_SS40",
     '1 7/8" Steel Pipe': "1_7_8_PIPE",
     '2 3/8" Steel Pipe': "2_3_8_SS40",
     '2 7/8" Steel Pipe': "2_7_8_SS40",
@@ -53,7 +55,6 @@ _LEGACY_POST_SIZE_TO_KEY: dict[str, str] = {
     '1 7/8" x 1 5/8" x .121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
     '2 1/4" x 1 5/8" x .121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
     '3 1/4" x 2 1/2" x .130" C-Shape': "C_3_1_4_X_2_1_2_X_130",
-    # Additional legacy display variants observed in templates/UI/docs
     '1 7/8" x 1 5/8" x 0.105" C-Shape': "C_1_7_8_X_1_5_8_X_105",
     '1 7/8" x 1 5/8" x 0.121" C-Shape': "C_1_7_8_X_1_5_8_X_121",
     '2 1/4" x 1 5/8" x 0.121" C-Shape': "C_2_1_4_X_1_5_8_X_121",
@@ -68,10 +69,17 @@ _LEGACY_POST_SIZE_TO_KEY: dict[str, str] = {
 }
 
 _LABEL_TO_KEY: dict[str, str] = {post.label: key for key, post in POST_TYPES.items()}
-_RECOMMENDATION_THRESHOLDS: tuple[tuple[float, str], ...] = (
-    (500, "2_3_8_SS40"),
-    (1000, "2_7_8_SS40"),
-    (float("inf"), "3_1_2_SS40"),
+
+# Pipe posts ordered by increasing bending capacity (smallest to largest).
+# Used by the capacity-based auto-selector.
+_PIPE_POSTS_BY_SIZE: tuple[str, ...] = (
+    "1_7_8_PIPE",
+    "2_3_8_SS40",
+    "2_7_8_SS40",
+    "3_1_2_SS40",
+    "4_0_PIPE",
+    "6_5_8_PIPE",
+    "8_5_8_PIPE",
 )
 
 
@@ -133,13 +141,34 @@ def _build_recommendation_for_post_key(post_key: str, source: str | None = None)
     return _build_recommendation(post_key=post_key, source_label=label)
 
 
-def _recommend_auto_by_load(load_per_post: float) -> Recommendation:
-    """Auto-select a post based on load thresholds, returning a post_key-backed recommendation."""
-    for limit, key in _RECOMMENDATION_THRESHOLDS:
-        if load_per_post < limit:
+def _recommend_auto_by_capacity(
+    load_per_post_lb: float,
+    height_ft: float,
+) -> Recommendation:
+    """Auto-select the lightest commercial pipe with adequate bending capacity.
+
+    Iterates pipe posts from smallest (1-7/8") to largest (8-5/8")
+    and picks the first one where M_allow >= M_demand based on the
+    actual section properties per ASTM F1083 Group IC.
+
+    Falls back to the largest pipe if nothing is adequate.
+    """
+    for key in _PIPE_POSTS_BY_SIZE:
+        _m_demand, _m_allow, ok = compute_moment_check(
+            key, height_ft, load_per_post_lb,
+        )
+        if ok:
             return _build_recommendation(key)
-    # Fallback (should not happen)
-    return _build_recommendation(_RECOMMENDATION_THRESHOLDS[-1][1])
+
+    # Nothing adequate -> recommend the largest pipe with a warning
+    logger.warning(
+        "No standard pipe post has adequate bending capacity for "
+        "%.0f lb at %.1f ft; recommending largest available (%s).",
+        load_per_post_lb,
+        height_ft,
+        _PIPE_POSTS_BY_SIZE[-1],
+    )
+    return _build_recommendation(_PIPE_POSTS_BY_SIZE[-1])
 
 
 def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
@@ -199,7 +228,9 @@ def _compute_block(
         recommended = _build_recommendation_for_post_key(post_key, source="manual")
         effective_key = post_key
     else:
-        recommended = _recommend_auto_by_load(load_per_post_lb)
+        recommended = _recommend_auto_by_capacity(
+            load_per_post_lb, data.height_total_ft,
+        )
         effective_key = recommended.post_key
 
     max_spacing_ft: float | None = None
@@ -288,8 +319,12 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     total_load_lb = round(pressure_psf * area, 2)
     load_per_post_lb = round(total_load_lb / 2, 2)
 
-    # Resolve post_key from legacy post_size if needed
-    effective_post_key = data.post_key
+    # Resolve post_key from legacy post_size if needed.
+    # Treat "auto" / "recommended" as no override (auto-select by capacity).
+    _raw_key = data.post_key
+    effective_post_key: str | None = None
+    if _raw_key and _raw_key.lower() not in {"auto", "recommended", ""}:
+        effective_post_key = _raw_key
     if not effective_post_key and data.post_size:
         effective_post_key = _normalize_post_key(data.post_size)
 
@@ -367,6 +402,7 @@ def _recommend_member_with_override(
     load_per_post: float,
     post_size_override: str | None,
     post_key: str | None = None,
+    height_ft: float = 8.0,
 ) -> Recommendation:
     """
     Choose post + footing.
@@ -375,7 +411,7 @@ def _recommend_member_with_override(
         Internal function retained for backward compatibility only.
         New code should use :func:`_compute_block` which handles post selection.
 
-    - If no override is given, fall back to the load-based auto selector.
+    - If no override is given, fall back to the capacity-based auto selector.
     - If an override is given and recognized in POST_TYPES:
         * keep that post size,
         * use its footing from the catalog,
@@ -386,8 +422,7 @@ def _recommend_member_with_override(
         return _build_recommendation_for_post_key(post_key, source="manual")
 
     if not post_size_override or post_size_override.lower() in {"auto", "recommended", ""}:
-        # Behavior exactly as before but now returns a post_key-driven recommendation
-        return _recommend_auto_by_load(load_per_post)
+        return _recommend_auto_by_capacity(load_per_post, height_ft)
 
     # Use post_key if provided, otherwise try to normalize
     normalized_key = post_key or _normalize_post_key(post_size_override)
@@ -397,7 +432,7 @@ def _recommend_member_with_override(
         return _build_recommendation(post_key=normalized_key, source_label=post.label)
 
     # Unknown string -> fall back
-    return _recommend_auto_by_load(load_per_post)
+    return _recommend_auto_by_capacity(load_per_post, height_ft)
 
 
 def _build_warnings(data: EstimateInput, pressure: float, load_per_post: float) -> list[str]:
@@ -441,6 +476,13 @@ def _assumptions(data: EstimateInput) -> list[str]:
         "Figure 29.3-1).",
         "Uniform pressure distribution assumed across the bay.",
         "Post tributary load = total bay load / 2.",
+        "Bending demand: M = P x (H/2), uniform load resultant at mid-height.",
+        "Allowable bending: M_allow = Fy x S / omega, "
+        "omega = 1.67 (ASD, AISC F1).",
+        "Pipe posts per ASTM F1083 Group IC (commercial chain-link). "
+        "Fy = 50 ksi.",
+        "Terminal posts modeled as cantilevers fixed at grade; "
+        "line posts restrained by top rail and fabric (advisory check).",
     ]
     return assumptions
 

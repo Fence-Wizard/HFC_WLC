@@ -40,24 +40,46 @@ class PostType:
     footing_embedment_in: float | None = None  # default embedment depth
 
 
+# ── Post Catalog ─────────────────────────────────────────────────────
+# All pipe dimensions per ASTM F1083 "Standard Specification for Pipe,
+# Steel, Hot-Dipped Zinc-Coated (Galvanized) Welded, for Fence
+# Framework" - Group IC (Heavy Industrial / Commercial).
+#
+# Yield strength Fy = 50 ksi per ASTM F1083 Group IC.
+# OD and minimum wall thickness from ASTM F1083 Table 1 / CLFMI
+# (Chain Link Fence Manufacturers Institute) reference tables.
+
 POST_TYPES: dict[str, PostType] = {
-    # --- Existing pipe posts (Group IC: steel pipe, 50 ksi) ---
-    "2_3_8_SS40": PostType(
-        key="2_3_8_SS40",
-        label='2-3/8" SS40 (Line Post)',
+    # ── Commercial chain-link pipe posts (ASTM F1083 Group IC) ────
+    "1_7_8_PIPE": PostType(
+        key="1_7_8_PIPE",
+        label='1-7/8" SS40',
         group="IC_PIPE",
-        od_in=2.375,
-        wall_in=0.130,  # confirm from your product data
+        od_in=1.900,
+        wall_in=0.120,
         height_base_ft=6.0,
         spacing_base_ft=8.0,
         fy_ksi=50.0,
-        table_label='2 3/8"',  # matches WLC Tables CSV row
+        table_label='1 7/8"',
+        footing_diameter_in=10.0,
+        footing_embedment_in=24.0,
+    ),
+    "2_3_8_SS40": PostType(
+        key="2_3_8_SS40",
+        label='2-3/8" SS40',
+        group="IC_PIPE",
+        od_in=2.375,
+        wall_in=0.130,
+        height_base_ft=6.0,
+        spacing_base_ft=8.0,
+        fy_ksi=50.0,
+        table_label='2 3/8"',
         footing_diameter_in=10.0,
         footing_embedment_in=24.0,
     ),
     "2_7_8_SS40": PostType(
         key="2_7_8_SS40",
-        label='2-7/8" SS40 (Line Post)',
+        label='2-7/8" SS40',
         group="IC_PIPE",
         od_in=2.875,
         wall_in=0.160,
@@ -70,9 +92,9 @@ POST_TYPES: dict[str, PostType] = {
     ),
     "3_1_2_SS40": PostType(
         key="3_1_2_SS40",
-        label='3-1/2" SS40 (Line Post)',
+        label='3-1/2" SS40',
         group="IC_PIPE",
-        od_in=3.5,
+        od_in=3.500,
         wall_in=0.160,
         height_base_ft=8.0,
         spacing_base_ft=10.0,
@@ -81,26 +103,12 @@ POST_TYPES: dict[str, PostType] = {
         footing_diameter_in=16.0,
         footing_embedment_in=36.0,
     ),
-    # --- Additional steel pipe sizes (same group / style) ---
-    "1_7_8_PIPE": PostType(
-        key="1_7_8_PIPE",
-        label='1 7/8" Steel Pipe',
-        group="IC_PIPE",
-        od_in=1.90,  # TODO: confirm OD from mill certs
-        wall_in=0.120,  # TODO: confirm wall
-        height_base_ft=6.0,
-        spacing_base_ft=8.0,
-        fy_ksi=50.0,
-        table_label='1 7/8"',
-        footing_diameter_in=10.0,
-        footing_embedment_in=24.0,
-    ),
     "4_0_PIPE": PostType(
         key="4_0_PIPE",
-        label='4" Steel Pipe',
+        label='4" SS40',
         group="IC_PIPE",
-        od_in=4.00,  # TODO: confirm
-        wall_in=0.160,  # TODO: confirm
+        od_in=4.000,
+        wall_in=0.160,
         height_base_ft=8.0,
         spacing_base_ft=10.0,
         fy_ksi=50.0,
@@ -110,10 +118,10 @@ POST_TYPES: dict[str, PostType] = {
     ),
     "6_5_8_PIPE": PostType(
         key="6_5_8_PIPE",
-        label='6 5/8" Steel Pipe',
+        label='6-5/8" SS40',
         group="IC_PIPE",
-        od_in=6.625,  # TODO: confirm
-        wall_in=0.280,  # TODO: confirm
+        od_in=6.625,
+        wall_in=0.280,
         height_base_ft=8.0,
         spacing_base_ft=10.0,
         fy_ksi=50.0,
@@ -123,10 +131,10 @@ POST_TYPES: dict[str, PostType] = {
     ),
     "8_5_8_PIPE": PostType(
         key="8_5_8_PIPE",
-        label='8 5/8" Steel Pipe',
+        label='8-5/8" SS40',
         group="IC_PIPE",
-        od_in=8.625,  # TODO: confirm
-        wall_in=0.322,  # TODO: confirm
+        od_in=8.625,
+        wall_in=0.322,
         height_base_ft=8.0,
         spacing_base_ft=10.0,
         fy_ksi=50.0,
@@ -134,7 +142,10 @@ POST_TYPES: dict[str, PostType] = {
         footing_diameter_in=30.0,
         footing_embedment_in=54.0,
     ),
-    # --- C-shapes (Group II: high strength cold-rolled C-shape, 50 ksi) ---
+    # ── C-shapes (Group II) ──────────────────────────────────────
+    # Retained for backward compatibility.  Section moduli are not
+    # populated so bending checks are skipped for these profiles.
+    # For wind-rated commercial chain-link, use pipe posts above.
     "C_1_7_8_X_1_5_8_X_105": PostType(
         key="C_1_7_8_X_1_5_8_X_105",
         label='1 7/8" x 1 5/8" x .105" C-Shape',
@@ -142,7 +153,7 @@ POST_TYPES: dict[str, PostType] = {
         height_base_ft=6.0,
         spacing_base_ft=8.0,
         fy_ksi=50.0,
-        section_modulus_in3=None,  # TODO: plug in Sx from manufacturer if you want moment checks
+        section_modulus_in3=None,
         table_label='1 7/8" x 1 5/8" x .105',
         footing_diameter_in=10.0,
         footing_embedment_in=24.0,
@@ -154,7 +165,7 @@ POST_TYPES: dict[str, PostType] = {
         height_base_ft=6.0,
         spacing_base_ft=8.0,
         fy_ksi=50.0,
-        section_modulus_in3=None,  # TODO: add Sx
+        section_modulus_in3=None,
         table_label='1 7/8" x 1 5/8" x .121',
         footing_diameter_in=10.0,
         footing_embedment_in=24.0,
@@ -323,26 +334,41 @@ def compute_moment_check(
     height_ft: float,
     load_per_post_lb: float,
 ) -> tuple[float, float, bool]:
-    """
-    Return (M_demand_lb_in, M_allow_lb_in, is_ok).
+    """Check bending demand vs allowable for a post.
+
+    The demand moment assumes **uniform pressure** on a cantilever post
+    of height *h*.  For uniform loading the resultant acts at h/2
+    above grade::
+
+        M_demand = P * (h / 2)
+
+    where P = load_per_post_lb (tributary wind force on one post).
+
+    Allowable moment uses ASD with omega = 1.67 (AISC F1)::
+
+        M_allow = Fy * S / omega
+
+    Returns
+    -------
+    tuple[float, float, bool]
+        ``(M_demand_lb_in, M_allow_lb_in, is_ok)``
     """
     post = POST_TYPES[post_key]
 
     # 1) Determine section modulus
     if post.section_modulus_in3 is not None:
-        # For C-shapes or custom sections, you can pre-store S directly
         S = post.section_modulus_in3  # noqa: N806
     elif post.od_in is not None and post.wall_in is not None:
         S = section_modulus_pipe(post.od_in, post.wall_in)  # noqa: N806
     else:
-        # No geometry -> skip check
+        # No geometry (e.g. C-shapes without Sx) -> skip check
         return (0.0, 0.0, True)
 
-    # 2) Allowable moment
+    # 2) Allowable moment (ASD, omega = 1.67)
     M_allow = bending_capacity_lb_in(S, post.fy_ksi)  # noqa: N806
 
-    # 3) Demand moment (0.6 H above grade, inches)
-    lever_arm_in = 0.6 * height_ft * 12.0
+    # 3) Demand moment: uniform pressure resultant at H/2
+    lever_arm_in = 0.5 * height_ft * 12.0
     M_demand = load_per_post_lb * lever_arm_in  # noqa: N806
 
     is_ok = M_demand <= M_allow

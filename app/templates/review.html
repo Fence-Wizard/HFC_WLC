@@ -262,16 +262,18 @@
       <summary>Bending Check (Advisory)</summary>
       <div class="detail-content">
         <p>
-          Simplified cantilever bending analysis:<br />
+          Uniform-load cantilever model (M = P &times; H/2):<br />
           <b>M<sub>demand</sub></b> = {{ "%.1f"|format(result.line.M_demand_ft_lb) }} ft-lb
           &nbsp;|&nbsp;
           <b>M<sub>allow</sub></b> = {{ "%.1f"|format(result.line.M_allow_ft_lb) }} ft-lb
+          (Fy &times; S / &Omega;, &Omega; = 1.67)
           &nbsp;|&nbsp;
           <b>Utilization</b>: {{ "%.0f"|format(result.line.M_demand_ft_lb / result.line.M_allow_ft_lb * 100) }}%
         </p>
         <p class="text-muted text-sm">
-          This is a conservative cantilever estimate for reference only.
-          Line post status is determined by the spacing table lookup.
+          Line posts are restrained by top rail and fabric. This cantilever
+          check is advisory only; spacing table limits govern line post status.
+          Pipe per ASTM F1083 Group IC, Fy = 50 ksi.
         </p>
       </div>
     </details>
@@ -337,19 +339,22 @@
 
     {% if result.terminal.M_demand_ft_lb and result.terminal.M_allow_ft_lb %}
     <details>
-      <summary>Bending Check</summary>
+      <summary>Bending Check (Terminal - Cantilever)</summary>
       <div class="detail-content">
         <p>
+          Cantilever fixed at grade, uniform wind load (M = P &times; H/2):<br />
           <b>M<sub>demand</sub></b> = {{ "%.1f"|format(result.terminal.M_demand_ft_lb) }} ft-lb
           &nbsp;|&nbsp;
           <b>M<sub>allow</sub></b> = {{ "%.1f"|format(result.terminal.M_allow_ft_lb) }} ft-lb
+          (Fy &times; S / &Omega;, &Omega; = 1.67)
           &nbsp;|&nbsp;
           <b>Utilization</b>: {{ "%.0f"|format(result.terminal.M_demand_ft_lb / result.terminal.M_allow_ft_lb * 100) }}%
         </p>
         {% if not result.terminal.moment_ok %}
         <p class="text-red text-sm">
           Terminal post bending demand exceeds allowable capacity.
-          Consider upgrading to a heavier section.
+          Consider upgrading to a heavier pipe section.
+          Pipe per ASTM F1083 Group IC, Fy = 50 ksi.
         </p>
         {% endif %}
       </div>
@@ -393,7 +398,7 @@
 {% endif %}
 
 <!-- ===== Assumptions ===== -->
-{% set all_assumptions = result.line.assumptions + result.terminal.assumptions %}
+{% set all_assumptions = result.line.assumptions %}
 {% if all_assumptions %}
 <div class="card">
   <details>

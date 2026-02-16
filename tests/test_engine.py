@@ -177,10 +177,9 @@ def test_swapping_post_key_changes_bending_and_spacing():
 
 def test_auto_and_manual_same_post_have_same_footing():
     """
-    Auto recommendation for a light load should pick 2_3_8_SS40;
-    manual override of same key must match footing.
+    Auto recommendation should pick a post by bending capacity.
+    Manual override of the same key must produce matching footing.
     """
-    # Auto select with light load (below 500 -> 2_3_8_SS40)
     auto_inp = EstimateInput(
         wind_speed_mph=80,
         height_total_ft=6,
@@ -189,11 +188,14 @@ def test_auto_and_manual_same_post_have_same_footing():
     )
     auto_out = calculate(auto_inp)
 
-    manual_inp = auto_inp.model_copy(update={"line_post_key": "2_3_8_SS40"})
+    # Get whatever the capacity-based auto-selector picked
+    auto_post_key = auto_out.line.post_key
+    assert auto_post_key is not None
+
+    manual_inp = auto_inp.model_copy(update={"line_post_key": auto_post_key})
     manual_out = calculate(manual_inp)
 
-    assert auto_out.line.post_key == "2_3_8_SS40"
-    assert manual_out.line.post_key == "2_3_8_SS40"
+    assert auto_out.line.post_key == manual_out.line.post_key
     assert (
         auto_out.line.recommended.footing_diameter_in
         == manual_out.line.recommended.footing_diameter_in
@@ -255,6 +257,86 @@ def test_unknown_legacy_label_falls_back_to_auto_with_warning():
         assert any("Unknown post label" in str(warn.message) for warn in w)
         # Should still return a recommendation (auto)
         assert result.recommended.post_key is not None
+
+
+def test_auto_selects_lightest_adequate_pipe():
+    """Capacity-based auto-selector should pick the lightest pipe that passes bending."""
+    from windcalc.post_catalog import compute_moment_check
+
+    # Light load: smallest pipe should suffice
+    light_inp = EstimateInput(
+        wind_speed_mph=80,
+        height_total_ft=6,
+        post_spacing_ft=6,
+        exposure="C",
+    )
+    light_out = calculate(light_inp)
+    light_key = light_out.line.post_key
+    # Verify the selected pipe actually passes the bending check
+    _md, _ma, ok = compute_moment_check(
+        light_key,
+        light_inp.height_total_ft,
+        light_out.shared.load_per_post_lb,
+    )
+    assert ok, f"Auto-selected {light_key} should pass bending"
+
+    # Heavier load: should pick a bigger pipe
+    heavy_inp = EstimateInput(
+        wind_speed_mph=150,
+        height_total_ft=12,
+        post_spacing_ft=10,
+        exposure="D",
+    )
+    heavy_out = calculate(heavy_inp)
+    heavy_key = heavy_out.line.post_key
+    _md, _ma, ok = compute_moment_check(
+        heavy_key,
+        heavy_inp.height_total_ft,
+        heavy_out.shared.load_per_post_lb,
+    )
+    assert ok, f"Auto-selected {heavy_key} should pass bending"
+
+
+def test_lever_arm_is_half_height():
+    """Bending demand should use H/2 lever arm (uniform loading)."""
+    # Known case: 120 mph, 8 ft, Exp C, 2-3/8" SS40
+    inp = EstimateInput(
+        wind_speed_mph=120,
+        height_total_ft=8,
+        post_spacing_ft=10,
+        exposure="C",
+        line_post_key="2_3_8_SS40",
+    )
+    out = calculate(inp)
+    # M_demand in ft-lb = load_per_post * (H/2) in ft
+    expected_ft_lb = out.shared.load_per_post_lb * (8.0 / 2.0)
+    assert out.line.M_demand_ft_lb is not None
+    assert abs(out.line.M_demand_ft_lb - expected_ft_lb) < 0.5
+
+
+def test_auto_post_key_treated_as_none():
+    """When post_key is 'auto', engine should auto-select (not treat it as a real key)."""
+    inp_auto = EstimateInput(
+        wind_speed_mph=120,
+        height_total_ft=8,
+        post_spacing_ft=10,
+        exposure="C",
+        post_key="auto",
+    )
+    inp_none = EstimateInput(
+        wind_speed_mph=120,
+        height_total_ft=8,
+        post_spacing_ft=10,
+        exposure="C",
+    )
+    out_auto = calculate(inp_auto)
+    out_none = calculate(inp_none)
+
+    assert out_auto.line.post_key == out_none.line.post_key
+    assert out_auto.line.post_key in (
+        "1_7_8_PIPE", "2_3_8_SS40", "2_7_8_SS40", "3_1_2_SS40",
+        "4_0_PIPE", "6_5_8_PIPE", "8_5_8_PIPE",
+    )
 
 
 def test_estimate_input_area_per_bay():
