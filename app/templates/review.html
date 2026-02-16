@@ -116,6 +116,12 @@
       <td>Post Spacing</td>
       <td>{{ data.post_spacing_ft }} ft</td>
     </tr>
+    {% if data.fence_type %}
+    <tr>
+      <td>Fence Type</td>
+      <td>{{ data.fence_type | replace("_", " ") | title }}</td>
+    </tr>
+    {% endif %}
     {% if data.estimator %}
     <tr>
       <td>Estimator</td>
@@ -124,6 +130,84 @@
     {% endif %}
   </table>
 </div>
+
+<!-- ===== ASCE 7-22 Calculation Breakdown ===== -->
+{% if result.shared.design_params %}
+{% set dp = result.shared.design_params %}
+<div class="card">
+  <details>
+    <summary style="font-size: 1rem; font-weight: 600; color: var(--hfc-blue-dark);">
+      ASCE 7-22 Calculation Breakdown
+    </summary>
+    <div class="detail-content" style="margin-top: 0.75rem;">
+      <p class="text-sm text-muted" style="margin-bottom: 0.75rem;">
+        <b>{{ dp.asce7_edition }}</b> &mdash; Velocity pressure and force coefficients
+        for freestanding fences and walls.
+      </p>
+
+      <h4 style="margin: 0.75rem 0 0.5rem; font-size: 0.92rem;">Velocity Pressure</h4>
+      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.5rem 0.75rem; border-radius: 4px;">
+        q<sub>z</sub> = 0.00256 &times; K<sub>z</sub> &times; K<sub>zt</sub>
+        &times; K<sub>d</sub> &times; V&sup2;
+        = 0.00256 &times; {{ "%.3f"|format(dp.kz) }}
+        &times; {{ dp.kzt }}
+        &times; {{ dp.kd }}
+        &times; {{ data.wind_speed_mph }}&sup2;
+        = <b>{{ "%.2f"|format(dp.qz_psf) }} psf</b>
+      </p>
+
+      <h4 style="margin: 0.75rem 0 0.5rem; font-size: 0.92rem;">Design Pressure</h4>
+      <p class="text-sm" style="font-family: monospace; background: var(--hfc-bg); padding: 0.5rem 0.75rem; border-radius: 4px;">
+        p = q<sub>z</sub> &times; G &times; C<sub>f</sub>
+        = {{ "%.2f"|format(dp.qz_psf) }}
+        &times; {{ dp.g }}
+        &times; {{ "%.3f"|format(dp.cf) }}
+        = <b>{{ "%.2f"|format(result.shared.pressure_psf) }} psf</b>
+      </p>
+
+      <table class="data-table" style="margin-top: 0.75rem;">
+        <tr>
+          <td>K<sub>z</sub> (exposure coefficient)</td>
+          <td>{{ "%.4f"|format(dp.kz) }}</td>
+        </tr>
+        <tr>
+          <td>K<sub>zt</sub> (topographic factor)</td>
+          <td>{{ dp.kzt }}</td>
+        </tr>
+        <tr>
+          <td>K<sub>d</sub> (directionality factor)</td>
+          <td>{{ dp.kd }}</td>
+        </tr>
+        <tr>
+          <td>G (gust-effect factor)</td>
+          <td>{{ dp.g }}</td>
+        </tr>
+        <tr>
+          <td>C<sub>f,solid</sub> (solid wall, B/s &ge; 20)</td>
+          <td>{{ "%.3f"|format(dp.cf_solid) }}</td>
+        </tr>
+        <tr>
+          <td>Solidity ratio &epsilon;</td>
+          <td>{{ "%.2f"|format(dp.solidity) }}</td>
+        </tr>
+        <tr>
+          <td>C<sub>f</sub> (net, C<sub>f,solid</sub> &times; &epsilon;)</td>
+          <td>{{ "%.3f"|format(dp.cf) }}</td>
+        </tr>
+        <tr>
+          <td>q<sub>z</sub> (velocity pressure)</td>
+          <td>{{ "%.2f"|format(dp.qz_psf) }} psf</td>
+        </tr>
+      </table>
+
+      <p class="text-muted text-sm" style="margin-top: 0.75rem;">
+        Reference: {{ dp.asce7_edition }}, Eq. 26.10-1, Table 26.6-1,
+        Section 26.11, Figure 29.3-1.
+      </p>
+    </div>
+  </details>
+</div>
+{% endif %}
 
 <!-- ===== Line Post Results ===== -->
 <div class="card">
@@ -330,7 +414,7 @@
   <p>Generate a detailed PDF report with these results for your project file.</p>
   <a
     class="btn btn-primary btn-lg"
-    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&job_name={{ data.project_name or data.job_name or 'Job' }}&soil_type={{ data.soil_type or 'default' }}"
+    href="/download?zip_code={{ data.zip_code }}&risk_category={{ data.risk_category }}&wind_speed_mph={{ data.wind_speed_mph }}&exposure={{ data.exposure }}&height_total_ft={{ data.height_total_ft }}&post_spacing_ft={{ data.post_spacing_ft }}&job_name={{ data.project_name or data.job_name or 'Job' }}&soil_type={{ data.soil_type or 'default' }}&fence_type={{ data.fence_type or 'chain_link_open' }}"
   >
     Download PDF Report
   </a>

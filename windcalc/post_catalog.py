@@ -1,4 +1,15 @@
-"""Post type catalog and Cf factor tables for wind load calculations."""
+"""Post type catalog and manufacturer spacing tables.
+
+This module contains:
+- POST_TYPES: catalog of available post sections with dimensions,
+  section properties, and footing defaults.
+- CF1/CF2/CF3 spacing factor system: manufacturer-derived correction
+  factors that adjust a base tabulated spacing for wind speed and
+  exposure.  These are SEPARATE from the ASCE 7-22 pressure
+  calculation in :mod:`windcalc.asce7` and represent the
+  manufacturer's tested/published spacing limits.
+- Bending capacity calculations (section modulus, moment check).
+"""
 
 from __future__ import annotations
 
@@ -174,13 +185,16 @@ POST_TYPES: dict[str, PostType] = {
     ),
 }
 
+# ── Manufacturer Spacing Factor Tables ─────────────────────────────
+# These are NOT ASCE 7 force coefficients.  They are manufacturer-
+# derived correction factors used to compute max allowable post
+# spacing from a base tabulated value.
+#
+# Cf1 decreases with wind speed (higher wind -> less spacing).
+# Cf2 decreases from B->D (more exposure -> less spacing).
+#
+# Source: HFC internal engineering reference tables.
 # Cf1 values per group & wind speed (mph)
-# From your CSV:
-#  WS   Group IA Regular   Group IA High   Group IC Pipe   Group II C-Shape
-# 105   2.2                3.7             3.1             (from sheet)
-# 110   2.0                3.4             2.8             ...
-# 120   1.7                2.8             2.4             ...
-# 130   1.4                2.4             2.0             ...
 
 CF1_TABLE = {
     "IA_REG": [
@@ -202,8 +216,9 @@ CF1_TABLE = {
         (130.0, 2.0),
     ],
     "II_CSHAPE": [
-        # Fill from your sheet for Group II C-shape
-        # Example structure:
+        # TODO: Replace with actual Group II C-shape values from
+        # manufacturer data.  Currently duplicated from IC_PIPE as
+        # a placeholder.
         (105.0, 3.1),
         (110.0, 2.8),
         (120.0, 2.4),
@@ -211,7 +226,9 @@ CF1_TABLE = {
     ],
 }
 
-# Exposure factor Cf2 (from your sheet: 1.0 / 0.69 / 0.57)
+# Exposure factor Cf2 (manufacturer spacing correction, NOT ASCE 7 Kz).
+# Higher value = more allowable spacing.  B has most spacing (least wind),
+# D has least spacing (most wind).
 EXPOSURE_CF2 = {
     "B": 1.0,
     "C": 0.69,
@@ -223,15 +240,31 @@ DEFAULT_CF3 = 1.0
 
 
 def get_cf1(group: PostGroup, wind_speed_mph: float) -> float:
-    """Interpolate Cf1 for a given group and wind speed."""
+    """Interpolate manufacturer Cf1 spacing factor for a given group and wind speed.
+
+    .. note::
+        Cf1 values only cover 105-130 mph in the current tables.
+        Wind speeds outside this range are clamped to the nearest
+        table value, which may be **non-conservative** for speeds
+        above 130 mph.
+    """
+    import warnings as _warnings
+
     table = CF1_TABLE[group]
     # Sort just in case
     table = sorted(table, key=lambda t: t[0])
 
-    # Below minimum or above maximum -> clamp
+    # Below minimum or above maximum -> clamp (with warning for high speeds)
     if wind_speed_mph <= table[0][0]:
         return table[0][1]
     if wind_speed_mph >= table[-1][0]:
+        if wind_speed_mph > table[-1][0] + 5:
+            _warnings.warn(
+                f"Wind speed {wind_speed_mph} mph exceeds manufacturer Cf1 "
+                f"table range (max {table[-1][0]} mph). Spacing limit is "
+                "clamped and may be non-conservative.",
+                stacklevel=2,
+            )
         return table[-1][1]
 
     # Linear interpolation
@@ -352,15 +385,14 @@ def _load_ws_tables(ws_mph: int) -> dict[PostGroup, dict[str, dict[float, float]
             reader = csv.reader(f)
             _rows = list(reader)
 
-        # TODO: Implement full CSV parsing logic here
-        # The CSV structure needs to be analyzed to properly parse:
-        # - Height rows (e.g., "Height -->")
-        # - Post size rows with spacing values
-        # - Group assignments (IA_REG, IA_HIGH, IC_PIPE, II_CSHAPE)
-        # For now, return empty tables - this will fall back to Cf-based calculation
+        # CSV parsing is not yet implemented.  When populated, this
+        # should parse the manufacturer's spacing tables (height vs
+        # post size -> max spacing) and return them grouped by
+        # PostGroup.  Until then, all lookups fall through to the
+        # Cf1/Cf2-based calculation in compute_max_spacing_cf().
 
     except Exception:
-        # If parsing fails, return empty tables (will use Cf fallback)
+        # If parsing fails, return empty tables (Cf1/Cf2 fallback)
         pass
 
     return tables

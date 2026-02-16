@@ -1,10 +1,17 @@
-"""Wind load calculation engine."""
+"""Wind load calculation engine.
+
+Uses ASCE 7-22 velocity pressure and force coefficients for
+freestanding fences and walls.  See :mod:`windcalc.asce7` for the
+underlying equations and constants.
+"""
 
 from __future__ import annotations
 
 import logging
 import warnings
 
+from windcalc.asce7 import FENCE_TYPES as ASCE_FENCE_TYPES
+from windcalc.asce7 import compute_design_pressure
 from windcalc.post_catalog import (
     POST_TYPES,
     compute_max_spacing_cf,
@@ -13,6 +20,7 @@ from windcalc.post_catalog import (
 )
 from windcalc.schemas import (
     BlockResult,
+    DesignParameters,
     EstimateInput,
     EstimateOutput,
     Recommendation,
@@ -24,10 +32,10 @@ from windcalc.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Placeholder constants - replace with proper ASCE 7 calculations for production use
-VELOCITY_PRESSURE_COEFFICIENT = 0.00256
-DESIGN_PRESSURE_MULTIPLIER = 1.2  # Simplified multiplier - replace with proper Cf coefficients
-EXPOSURE_FACTORS: dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
+# Legacy constants (used ONLY by deprecated calculate_wind_load)
+_LEGACY_QZ_COEFF = 0.00256
+_LEGACY_PRESSURE_MULT = 1.2
+_LEGACY_EXPOSURE: dict[str, float] = {"B": 0.7, "C": 1.0, "D": 1.15}
 
 _LEGACY_POST_SIZE_TO_KEY: dict[str, str] = {
     # Legacy wizard strings (kept only for backward compatibility)
@@ -153,8 +161,8 @@ def calculate_wind_load(request: WindLoadRequest) -> WindLoadResult:
     wind_speed = request.wind.wind_speed
     importance = request.wind.importance_factor
 
-    velocity_pressure = VELOCITY_PRESSURE_COEFFICIENT * (wind_speed**2) * importance
-    design_pressure = velocity_pressure * DESIGN_PRESSURE_MULTIPLIER
+    velocity_pressure = _LEGACY_QZ_COEFF * (wind_speed**2) * importance
+    design_pressure = velocity_pressure * _LEGACY_PRESSURE_MULT
 
     fence_area = request.fence.height * request.fence.width
     total_load = design_pressure * fence_area
@@ -177,7 +185,6 @@ def _compute_block(
     post_key: str | None,
     load_per_post_lb: float,
     data: EstimateInput,
-    exposure_factor: float,
     pressure_psf: float,
     area: float,
     total_load_lb: float,
@@ -259,12 +266,23 @@ def _compute_block(
 
 
 def calculate(data: EstimateInput) -> EstimateOutput:
+    """Calculate bay-level loads with separate line and terminal post results.
+
+    Uses ASCE 7-22 velocity pressure and force coefficients.
     """
-    Calculate bay-level loads with separate line and terminal post results.
-    """
-    exposure_factor = EXPOSURE_FACTORS.get(data.exposure.upper(), EXPOSURE_FACTORS["C"])
-    velocity_pressure = VELOCITY_PRESSURE_COEFFICIENT * (data.wind_speed_mph**2)
-    pressure_psf = round(velocity_pressure * DESIGN_PRESSURE_MULTIPLIER * exposure_factor, 2)
+    # Resolve fence solidity
+    fence_info = ASCE_FENCE_TYPES.get(data.fence_type)
+    solidity = fence_info.solidity if fence_info else 1.0
+
+    # ASCE 7-22 design pressure
+    dp = compute_design_pressure(
+        wind_speed_mph=data.wind_speed_mph,
+        height_ft=data.height_total_ft,
+        exposure=data.exposure,
+        solidity=solidity,
+        fence_type=data.fence_type,
+    )
+    pressure_psf = dp.design_pressure_psf
 
     area = data.area_per_bay_ft2
     total_load_lb = round(pressure_psf * area, 2)
@@ -279,11 +297,25 @@ def calculate(data: EstimateInput) -> EstimateOutput:
     line_post_key = data.line_post_key or effective_post_key
     terminal_post_key = data.terminal_post_key or effective_post_key
 
+    design_params = DesignParameters(
+        asce7_edition=dp.asce7_edition,
+        kz=dp.kz,
+        kzt=dp.kzt,
+        kd=dp.kd,
+        g=dp.g,
+        cf_solid=dp.cf_solid,
+        cf=dp.cf,
+        solidity=dp.solidity,
+        fence_type=dp.fence_type,
+        qz_psf=dp.qz_psf,
+    )
+
     shared = SharedResult(
         pressure_psf=pressure_psf,
         area_per_bay_ft2=round(area, 2),
         total_load_lb=total_load_lb,
         load_per_post_lb=load_per_post_lb,
+        design_params=design_params,
     )
 
     line_block = _compute_block(
@@ -291,7 +323,6 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         post_key=line_post_key,
         load_per_post_lb=load_per_post_lb,
         data=data,
-        exposure_factor=exposure_factor,
         pressure_psf=pressure_psf,
         area=area,
         total_load_lb=total_load_lb,
@@ -302,7 +333,6 @@ def calculate(data: EstimateInput) -> EstimateOutput:
         post_key=terminal_post_key,
         load_per_post_lb=load_per_post_lb,
         data=data,
-        exposure_factor=exposure_factor,
         pressure_psf=pressure_psf,
         area=area,
         total_load_lb=total_load_lb,
@@ -384,13 +414,33 @@ def _build_warnings(data: EstimateInput, pressure: float, load_per_post: float) 
 
 
 def _assumptions(data: EstimateInput) -> list[str]:
+    fence_info = ASCE_FENCE_TYPES.get(data.fence_type)
+    solidity = fence_info.solidity if fence_info else 1.0
+    fence_label = fence_info.label if fence_info else data.fence_type
+
+    dp = compute_design_pressure(
+        wind_speed_mph=data.wind_speed_mph,
+        height_ft=data.height_total_ft,
+        exposure=data.exposure,
+        solidity=solidity,
+        fence_type=data.fence_type,
+    )
     assumptions = [
         f"Design wind speed V = {data.wind_speed_mph} mph "
-        "(3-sec gust at 33 ft), provided by user from ASCE wind maps "
-        "and/or project drawings.",
-        "Loads based on simplified ASCE 7-inspired velocity pressure equation.",
-        "Exposure factors are approximations for demo purposes.",
+        f"(3-sec gust at 33 ft) for Risk Category {data.risk_category}, "
+        "entered by user from ASCE 7 wind maps or project drawings.",
+        f"Velocity pressure per ASCE 7-22 Eq. 26.10-1: "
+        f"qz = 0.00256 x Kz x Kzt x Kd x V^2 = {dp.qz_psf:.2f} psf.",
+        f"Kz = {dp.kz:.3f} (Exposure {data.exposure}, "
+        f"h = {data.height_total_ft} ft, Table 26.10-1).",
+        f"Kd = {dp.kd} (fences/signs, Table 26.6-1).",
+        f"Kzt = {dp.kzt} (flat terrain assumed).",
+        f"G = {dp.g} (rigid structure gust-effect factor, Section 26.11).",
+        f"Cf = {dp.cf:.3f} ({fence_label}, "
+        f"solidity = {solidity:.2f}, B/s >= 20 assumed, "
+        "Figure 29.3-1).",
         "Uniform pressure distribution assumed across the bay.",
+        "Post tributary load = total bay load / 2.",
     ]
     return assumptions
 

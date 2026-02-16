@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from windcalc import EstimateInput, calculate
+from windcalc.asce7 import FENCE_TYPES as ASCE_FENCE_TYPES
 from windcalc.post_catalog import POST_TYPES
 from windcalc.report import draw_pdf
 from windcalc.risk import classify_risk
@@ -33,6 +34,11 @@ POST_OPTIONS = sorted(
     key=lambda item: item["label"],
 )
 POST_LABELS = {key: post.label for key, post in POST_TYPES.items()}
+
+FENCE_OPTIONS = [
+    {"key": ft.key, "label": ft.label, "description": ft.description}
+    for ft in ASCE_FENCE_TYPES.values()
+]
 
 router = APIRouter(tags=["wizard"])
 
@@ -65,7 +71,12 @@ async def step2(
     return templates.TemplateResponse(
         request,
         "wizard_step2.html",
-        {"data": data, "errors": [], "post_keys": sorted(POST_TYPES.keys())},
+        {
+            "data": data,
+            "errors": [],
+            "post_keys": sorted(POST_TYPES.keys()),
+            "fence_options": FENCE_OPTIONS,
+        },
     )
 
 
@@ -79,6 +90,7 @@ async def step3(
     height_total_ft: float = Form(...),
     post_spacing_ft: float = Form(...),
     post_key: str = Form("auto"),
+    fence_type: str = Form("chain_link_open"),
 ):
     data = {
         "zip_code": zip_code,
@@ -88,6 +100,7 @@ async def step3(
         "height_total_ft": height_total_ft,
         "post_spacing_ft": post_spacing_ft,
         "post_key": post_key,
+        "fence_type": fence_type,
     }
     return templates.TemplateResponse(
         request,
@@ -106,6 +119,7 @@ async def review(
     height_total_ft: float = Form(...),
     post_spacing_ft: float = Form(...),
     soil_type: str = Form("default"),
+    fence_type: str = Form("chain_link_open"),
     job_name: str = Form(""),
     project_name: str = Form(""),
     location: str = Form(""),
@@ -125,6 +139,7 @@ async def review(
         "height_total_ft": height_total_ft,
         "post_spacing_ft": post_spacing_ft,
         "soil_type": soil_type,
+        "fence_type": fence_type,
         "job_name": job_name or project_name,
         "project_name": project_name or job_name,
         "location": location,
@@ -142,6 +157,8 @@ async def review(
         height_total_ft=height_total_ft,
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
+        fence_type=fence_type,
+        risk_category=risk_category,
         soil_type=soil_type or None,
         line_post_key=None
         if not line_post_key or line_post_key == "auto"
@@ -179,6 +196,7 @@ async def download(
     height_total_ft: float,
     post_spacing_ft: float,
     soil_type: str = "default",
+    fence_type: str = "chain_link_open",
     job_name: str = "Job",
     line_post_key: str = "",
     terminal_post_key: str = "",
@@ -191,6 +209,8 @@ async def download(
         height_total_ft=height_total_ft,
         post_spacing_ft=post_spacing_ft,
         exposure=exposure,
+        fence_type=fence_type,
+        risk_category=risk_category,
         soil_type=soil_type or None,
         line_post_key=line_post_key or None,
         terminal_post_key=terminal_post_key or None,

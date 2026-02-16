@@ -79,6 +79,22 @@
     </div>
 
     <div class="form-group">
+      <label for="fence_type">Fence Type</label>
+      <select id="fence_type" name="fence_type">
+        {% for ft in fence_options %}
+        <option
+          value="{{ ft.key }}"
+          {% if data.fence_type==ft.key %}selected{% endif %}
+        >{{ ft.label }}</option>
+        {% endfor %}
+      </select>
+      <span class="form-hint">
+        Determines the solidity ratio and force coefficient (Cf).
+        Open chain link sees much less wind load than a solid panel.
+      </span>
+    </div>
+
+    <div class="form-group">
       <label for="post_key">Post Type</label>
       <select id="post_key" name="post_key">
         <option value="auto" {% if not data.post_key or data.post_key=='auto' %}selected{% endif %}>

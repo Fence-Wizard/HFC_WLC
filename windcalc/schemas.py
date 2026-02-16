@@ -73,6 +73,14 @@ class EstimateInput(BaseModel):
         ..., gt=0, le=30, description="Spacing between posts in feet"
     )
     exposure: str = Field(default="C", description="Exposure category (B, C, or D)")
+    fence_type: str = Field(
+        default="chain_link_open",
+        description="Fence type key (determines solidity ratio and Cf)",
+    )
+    risk_category: str = Field(
+        default="III",
+        description="Risk category (I or III) for documentation/validation",
+    )
     soil_type: str | None = Field(None, description="Optional soil descriptor")
     # New dual post selections
     line_post_key: str | None = Field(
@@ -101,11 +109,33 @@ class EstimateInput(BaseModel):
         return self.height_total_ft * self.post_spacing_ft
 
 
+class DesignParameters(BaseModel):
+    """ASCE 7-22 intermediate calculation values for traceability."""
+
+    asce7_edition: str = Field(default="ASCE 7-22", description="Code edition")
+    kz: float = Field(..., description="Velocity pressure exposure coefficient")
+    kzt: float = Field(default=1.0, description="Topographic factor")
+    kd: float = Field(..., description="Wind directionality factor")
+    g: float = Field(..., description="Gust-effect factor (rigid)")
+    cf_solid: float = Field(
+        ..., description="Force coefficient for solid wall (ASCE 7-22 Fig. 29.3-1)"
+    )
+    cf: float = Field(
+        ..., description="Net force coefficient (Cf_solid x solidity)"
+    )
+    solidity: float = Field(
+        ..., description="Solidity ratio epsilon (0-1)"
+    )
+    fence_type: str = Field(..., description="Fence type key")
+    qz_psf: float = Field(..., description="Velocity pressure in psf")
+
+
 class SharedResult(BaseModel):
     pressure_psf: float
     area_per_bay_ft2: float
     total_load_lb: float
     load_per_post_lb: float
+    design_params: DesignParameters | None = None
 
 
 class BlockResult(BaseModel):
@@ -162,6 +192,7 @@ class EstimateOutput(BaseModel):
 
 
 __all__ = [
+    "DesignParameters",
     "EstimateInput",
     "EstimateOutput",
     "FenceSpecs",
