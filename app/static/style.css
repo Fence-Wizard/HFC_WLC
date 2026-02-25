@@ -1345,11 +1345,69 @@ select optgroup {
   margin: 0.5rem 0 1rem;
 }
 
+/* ── Concrete results hero ──────────────────────────────────────────── */
+.concrete-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 1rem;
+  align-items: stretch;
+  border: 1px solid var(--hfc-border);
+}
+
+.concrete-hero-main {
+  border-radius: var(--radius-md);
+  padding: 1.1rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--hfc-blue) 20%, var(--hfc-card-bg)), var(--hfc-card-bg));
+  border: 1px solid color-mix(in srgb, var(--hfc-blue) 35%, var(--hfc-border));
+}
+
+.concrete-hero-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hfc-blue-dark);
+}
+
+.concrete-hero-value {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--hfc-blue);
+  line-height: 1.05;
+  margin-top: 0.15rem;
+}
+
+.concrete-hero-unit {
+  font-size: 0.95rem;
+  color: var(--hfc-text-secondary);
+  font-weight: 600;
+}
+
+.concrete-hero-note {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--hfc-text-secondary);
+}
+
+.concrete-hero-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.6rem;
+}
+
 .hole-row input {
   width: 100%;
 }
 
 @media (max-width: 900px) {
+  .concrete-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .concrete-hero-stats {
+    grid-template-columns: 1fr;
+  }
+
   .concrete-preview-grid {
     grid-template-columns: repeat(2, 1fr);
   }

@@ -10,26 +10,91 @@
   </div>
 </div>
 
-<div class="results-grid">
-  <div class="result-tile">
-    <div class="result-value">{{ "%.2f"|format(result.total_volume_cy) }}</div>
-    <div class="result-label">Total Concrete</div>
-    <div class="result-unit">CY</div>
+<div class="card concrete-hero">
+  <div class="concrete-hero-main">
+    <div class="concrete-hero-kicker">Concrete Takeoff</div>
+    <div class="concrete-hero-value" id="hero_total_cy">{{ "%.2f"|format(result.total_volume_cy) }}</div>
+    <div class="concrete-hero-unit">Cubic Yards</div>
+    <div class="concrete-hero-note">Live-adjustable estimate for post-hole concrete.</div>
   </div>
-  <div class="result-tile">
-    <div class="result-value">{{ result.bags_60lb }}</div>
-    <div class="result-label">60 lb Bags</div>
-    <div class="result-unit">bags</div>
+  <div class="concrete-hero-stats">
+    <div class="result-tile">
+      <div class="result-value" id="hero_bags">{{ result.bags_60lb }}</div>
+      <div class="result-label">60 lb Bags</div>
+      <div class="result-unit">bags</div>
+    </div>
+    <div class="result-tile">
+      <div class="result-value" id="hero_holes">{{ result.total_holes }}</div>
+      <div class="result-label">Total Holes</div>
+      <div class="result-unit">count</div>
+    </div>
+    <div class="result-tile">
+      <div class="result-value" id="hero_cf">{{ "%.2f"|format(result.total_volume_cf) }}</div>
+      <div class="result-label">Total Volume</div>
+      <div class="result-unit">cf</div>
+    </div>
   </div>
-  <div class="result-tile">
-    <div class="result-value">{{ result.total_holes }}</div>
-    <div class="result-label">Total Holes</div>
-    <div class="result-unit">count</div>
+</div>
+
+<div class="card">
+  <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
+    <h2>Live Adjustments</h2>
+    <p>Edit hole specs here and update totals instantly.</p>
   </div>
-  <div class="result-tile">
-    <div class="result-value">{{ "%.2f"|format(result.total_volume_cf) }}</div>
-    <div class="result-label">Total Volume</div>
-    <div class="result-unit">cf</div>
+
+  <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustRow('Line Post',10,30,10)">+ Line Preset</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustRow('Terminal Post',12,36,4)">+ Terminal Preset</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustRow('Gate Post',16,42,2)">+ Gate Preset</button>
+  </div>
+
+  <div id="adjustRows" class="hole-rows-wrap">
+    {% for r in result.rows %}
+    <div class="hole-row">
+      <div class="hole-field">
+        <label>Post Type</label>
+        <input type="text" name="post_type" value="{{ r.post_type }}" />
+      </div>
+      <div class="hole-field">
+        <label>Hole Diameter (in)</label>
+        <input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" value="{{ r.hole_diameter_in }}" />
+      </div>
+      <div class="hole-field">
+        <label>Hole Depth (in)</label>
+        <input type="number" name="hole_depth_in" min="6" max="144" step="1" value="{{ r.hole_depth_in }}" />
+      </div>
+      <div class="hole-field">
+        <label>Hole Count</label>
+        <input type="number" name="hole_count" min="1" max="100000" step="1" value="{{ r.hole_count }}" />
+      </div>
+      <div class="hole-field hole-actions">
+        <label>&nbsp;</label>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="removeAdjustRow(this)">Remove</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex; gap:0.6rem; margin:0.65rem 0 0.85rem;">
+    <button type="button" class="btn btn-secondary" onclick="addAdjustRow('', '', '', '')">+ Add Row</button>
+  </div>
+
+  <div class="tinker-grid" style="margin-bottom:0.85rem;">
+    <div>
+      <label style="text-transform:none; letter-spacing:0;">Include waste allowance</label>
+      <label style="display:flex; align-items:center; gap:0.45rem; margin:0;">
+        <input id="adj_include_waste" type="checkbox" {% if data.include_waste %}checked{% endif %} />
+        <span class="text-sm">Apply waste to final totals</span>
+      </label>
+    </div>
+    <div>
+      <label for="adj_waste_percent" style="text-transform:none; letter-spacing:0;">Waste %</label>
+      <input id="adj_waste_percent" type="number" min="0" max="30" step="0.5" value="{{ data.waste_percent or 10 }}" />
+    </div>
+  </div>
+
+  <div class="btn-group" style="margin-top:0;">
+    <button type="button" class="btn btn-primary" onclick="recalcConcrete()">Update Totals</button>
   </div>
 </div>
 
@@ -52,7 +117,7 @@
         <th>60 lb Bags</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="hole_breakdown_body">
       {% for r in result.rows %}
       <tr>
         <td style="text-align:left;">{{ r.post_type }}</td>
@@ -88,14 +153,18 @@
   </table>
 </div>
 
-{% if result.warnings %}
 <div class="card">
   <h3 style="margin-top:0;">Warnings</h3>
+  <div id="concrete_warnings">
+  {% if result.warnings %}
   {% for w in result.warnings %}
   <div class="inline-warning">{{ w }}</div>
   {% endfor %}
+  {% else %}
+  <p class="text-muted text-sm" style="margin:0;">No warnings for the current setup.</p>
+  {% endif %}
+  </div>
 </div>
-{% endif %}
 
 <div class="card">
   <details>
@@ -118,5 +187,101 @@
   <a href="/concrete" class="btn btn-secondary">&larr; Adjust Inputs</a>
   <a href="/" class="btn btn-primary">Switch to Wind Calculator</a>
 </div>
+
+<script>
+function addAdjustRow(postType, dia, depth, count) {
+  var wrap = document.getElementById('adjustRows');
+  var row = document.createElement('div');
+  row.className = 'hole-row';
+  row.innerHTML = ''
+    + '<div class="hole-field"><label>Post Type</label><input type="text" name="post_type" value="'+(postType || '')+'" /></div>'
+    + '<div class="hole-field"><label>Hole Diameter (in)</label><input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" value="'+(dia || '')+'" /></div>'
+    + '<div class="hole-field"><label>Hole Depth (in)</label><input type="number" name="hole_depth_in" min="6" max="144" step="1" value="'+(depth || '')+'" /></div>'
+    + '<div class="hole-field"><label>Hole Count</label><input type="number" name="hole_count" min="1" max="100000" step="1" value="'+(count || '')+'" /></div>'
+    + '<div class="hole-field hole-actions"><label>&nbsp;</label><button type="button" class="btn btn-secondary btn-sm" onclick="removeAdjustRow(this)">Remove</button></div>';
+  wrap.appendChild(row);
+}
+
+function removeAdjustRow(btn) {
+  var wrap = document.getElementById('adjustRows');
+  if (wrap.children.length <= 1) return;
+  btn.closest('.hole-row').remove();
+}
+
+function recalcConcrete() {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#adjustRows .hole-row')).map(function(row) {
+    return {
+      post_type: (row.querySelector('input[name="post_type"]').value || '').trim() || 'Post',
+      hole_diameter_in: parseFloat(row.querySelector('input[name="hole_diameter_in"]').value || '0'),
+      hole_depth_in: parseFloat(row.querySelector('input[name="hole_depth_in"]').value || '0'),
+      hole_count: parseInt(row.querySelector('input[name="hole_count"]').value || '0', 10)
+    };
+  }).filter(function(r) {
+    return r.hole_diameter_in > 0 && r.hole_depth_in > 0 && r.hole_count > 0;
+  });
+
+  if (!rows.length) return;
+
+  var body = {
+    hole_specs: rows,
+    include_waste: !!document.getElementById('adj_include_waste').checked,
+    waste_percent: parseFloat(document.getElementById('adj_waste_percent').value || '0'),
+    project_name: "{{ data.project_name or '' }}",
+    location: "{{ data.location or '' }}",
+    estimator: "{{ data.estimator or '' }}"
+  };
+
+  fetch('/api/v1/concrete-estimate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    renderConcreteResult(d);
+  }).catch(function(){});
+}
+
+function renderConcreteResult(d) {
+  document.getElementById('hero_total_cy').textContent = d.total_volume_cy.toFixed(2);
+  document.getElementById('hero_bags').textContent = d.bags_60lb;
+  document.getElementById('hero_holes').textContent = d.total_holes;
+  document.getElementById('hero_cf').textContent = d.total_volume_cf.toFixed(2);
+
+  var tbody = document.getElementById('hole_breakdown_body');
+  var html = '';
+  d.rows.forEach(function(r) {
+    html += '<tr>'
+      + '<td style="text-align:left;">'+r.post_type+'</td>'
+      + '<td>'+r.hole_diameter_in.toFixed(1)+'</td>'
+      + '<td>'+r.hole_depth_in.toFixed(1)+'</td>'
+      + '<td>'+r.hole_count+'</td>'
+      + '<td>'+r.total_volume_cf.toFixed(2)+'</td>'
+      + '<td>'+r.total_volume_cy.toFixed(2)+'</td>'
+      + '<td>'+r.bags_60lb+'</td>'
+      + '</tr>';
+  });
+  html += '<tr><td colspan="4" style="text-align:right;"><b>Subtotal</b></td><td><b>'
+    + d.subtotal_volume_cf.toFixed(2) + '</b></td><td><b>'
+    + (d.subtotal_volume_cf / 27.0).toFixed(2) + '</b></td><td>-</td></tr>';
+  if (d.waste_percent > 0) {
+    html += '<tr><td colspan="4" style="text-align:right;">Waste ('+d.waste_percent.toFixed(1)+'%)</td><td>'
+      + d.waste_volume_cf.toFixed(2) + '</td><td>'
+      + (d.waste_volume_cf / 27.0).toFixed(2) + '</td><td>-</td></tr>';
+  }
+  html += '<tr><td colspan="4" style="text-align:right;"><b>Total</b></td><td><b>'
+    + d.total_volume_cf.toFixed(2) + '</b></td><td><b>'
+    + d.total_volume_cy.toFixed(2) + '</b></td><td><b>'
+    + d.bags_60lb + '</b></td></tr>';
+  tbody.innerHTML = html;
+
+  var warn = document.getElementById('concrete_warnings');
+  if (d.warnings && d.warnings.length) {
+    warn.innerHTML = d.warnings.map(function(w){ return '<div class="inline-warning">'+w+'</div>'; }).join('');
+  } else {
+    warn.innerHTML = '<p class="text-muted text-sm" style="margin:0;">No warnings for the current setup.</p>';
+  }
+}
+</script>
 {% endblock %}
 
