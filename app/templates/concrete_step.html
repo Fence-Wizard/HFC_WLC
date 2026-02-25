@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Concrete Calculator | HFC Windload Calculator{% endblock %}
+{% block title %}Concrete Calculator | HFC Construction Calculator{% endblock %}
 
 {% block content %}
 <div class="card" style="margin-bottom: 0.9rem;">
@@ -14,7 +14,16 @@
   <div class="card">
     <div class="card-header">
       <h2>Fence Concrete Calculator</h2>
-      <p>Enter one or more hole specs to get total CY and 60 lb bag count.</p>
+      <p>Build your hole schedule by post type, diameter, depth, and count.</p>
+    </div>
+
+    <div class="info-card">
+      <strong>How to use this tool</strong>
+      <ul>
+        <li>Add one row per post condition (line, terminal, gate, corner, custom).</li>
+        <li>Set diameter and depth in inches and total hole count for that row.</li>
+        <li>Use the live preview to validate totals before running final results.</li>
+      </ul>
     </div>
 
     {% if errors %}
@@ -25,20 +34,65 @@
     </div>
     {% endif %}
 
-    <div id="holeRows">
+    <div class="concrete-row-toolbar">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetRow('Line Post',10,30,10)">+ Line Preset</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetRow('Terminal Post',12,36,4)">+ Terminal Preset</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetRow('Gate Post',16,42,2)">+ Gate Preset</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="clearRows()">Clear</button>
+    </div>
+
+    <div id="holeRows" class="hole-rows-wrap">
       {% for r in data.rows %}
       <div class="hole-row">
-        <input type="text" name="post_type" placeholder="Post type (Line/Terminal/Gate)" value="{{ r.post_type }}" />
-        <input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="Dia (in)" value="{{ r.hole_diameter_in }}" required />
-        <input type="number" name="hole_depth_in" min="6" max="144" step="1" placeholder="Depth (in)" value="{{ r.hole_depth_in }}" required />
-        <input type="number" name="hole_count" min="1" max="100000" step="1" placeholder="# Holes" value="{{ r.hole_count }}" required />
-        <button type="button" class="btn btn-secondary btn-sm" onclick="removeRow(this)">Remove</button>
+        <div class="hole-field hole-post-type">
+          <label>Post Type</label>
+          <input type="text" name="post_type" placeholder="Line / Terminal / Gate / Corner" value="{{ r.post_type }}" />
+        </div>
+        <div class="hole-field">
+          <label>Hole Diameter (in)</label>
+          <input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="e.g. 12" value="{{ r.hole_diameter_in }}" required />
+        </div>
+        <div class="hole-field">
+          <label>Hole Depth (in)</label>
+          <input type="number" name="hole_depth_in" min="6" max="144" step="1" placeholder="e.g. 36" value="{{ r.hole_depth_in }}" required />
+        </div>
+        <div class="hole-field">
+          <label>Hole Count</label>
+          <input type="number" name="hole_count" min="1" max="100000" step="1" placeholder="e.g. 10" value="{{ r.hole_count }}" required />
+        </div>
+        <div class="hole-field hole-actions">
+          <label>&nbsp;</label>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="removeRow(this)">Remove</button>
+        </div>
       </div>
       {% endfor %}
     </div>
 
     <div style="display: flex; gap: 0.6rem; margin: 0.5rem 0 1rem;">
       <button type="button" class="btn btn-secondary" onclick="addRow()">+ Add Row</button>
+    </div>
+
+    <div class="concrete-preview-grid">
+      <div class="result-tile">
+        <div class="result-value" id="pv_rows">0</div>
+        <div class="result-label">Rows</div>
+        <div class="result-unit">active</div>
+      </div>
+      <div class="result-tile">
+        <div class="result-value" id="pv_holes">0</div>
+        <div class="result-label">Holes</div>
+        <div class="result-unit">count</div>
+      </div>
+      <div class="result-tile">
+        <div class="result-value" id="pv_cy">0.00</div>
+        <div class="result-label">Preview Concrete</div>
+        <div class="result-unit">CY</div>
+      </div>
+      <div class="result-tile">
+        <div class="result-value" id="pv_bags">0</div>
+        <div class="result-label">Preview 60 lb Bags</div>
+        <div class="result-unit">bags</div>
+      </div>
     </div>
 
     <details>
@@ -77,23 +131,94 @@
 
 <script>
 function addRow() {
+  addPresetRow('', '', '', '');
+}
+
+function addPresetRow(postType, dia, depth, count) {
   var wrap = document.getElementById('holeRows');
   var row = document.createElement('div');
   row.className = 'hole-row';
   row.innerHTML = ''
-    + '<input type="text" name="post_type" placeholder="Post type (Line/Terminal/Gate)" />'
-    + '<input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="Dia (in)" required />'
-    + '<input type="number" name="hole_depth_in" min="6" max="144" step="1" placeholder="Depth (in)" required />'
-    + '<input type="number" name="hole_count" min="1" max="100000" step="1" placeholder="# Holes" required />'
-    + '<button type="button" class="btn btn-secondary btn-sm" onclick="removeRow(this)">Remove</button>';
+    + '<div class="hole-field hole-post-type"><label>Post Type</label>'
+    + '<input type="text" name="post_type" placeholder="Line / Terminal / Gate / Corner" value="'+(postType || '')+'" /></div>'
+    + '<div class="hole-field"><label>Hole Diameter (in)</label>'
+    + '<input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="e.g. 12" value="'+(dia || '')+'" required /></div>'
+    + '<div class="hole-field"><label>Hole Depth (in)</label>'
+    + '<input type="number" name="hole_depth_in" min="6" max="144" step="1" placeholder="e.g. 36" value="'+(depth || '')+'" required /></div>'
+    + '<div class="hole-field"><label>Hole Count</label>'
+    + '<input type="number" name="hole_count" min="1" max="100000" step="1" placeholder="e.g. 10" value="'+(count || '')+'" required /></div>'
+    + '<div class="hole-field hole-actions"><label>&nbsp;</label>'
+    + '<button type="button" class="btn btn-secondary btn-sm" onclick="removeRow(this)">Remove</button></div>';
   wrap.appendChild(row);
+  bindRowInputs(row);
+  updatePreview();
 }
 
 function removeRow(btn) {
   var wrap = document.getElementById('holeRows');
   if (wrap.children.length <= 1) return;
   btn.closest('.hole-row').remove();
+  updatePreview();
 }
+
+function clearRows() {
+  var wrap = document.getElementById('holeRows');
+  wrap.innerHTML = '';
+  addRow();
+  updatePreview();
+}
+
+function bindRowInputs(scope) {
+  var inputs = scope.querySelectorAll('input');
+  inputs.forEach(function(inp) {
+    inp.addEventListener('input', updatePreview);
+    inp.addEventListener('change', updatePreview);
+  });
+}
+
+function updatePreview() {
+  var rows = document.querySelectorAll('#holeRows .hole-row');
+  var activeRows = 0;
+  var totalHoles = 0;
+  var totalCf = 0;
+  var includeWaste = document.getElementById('include_waste');
+  var wastePercentEl = document.getElementById('waste_percent');
+  var wastePct = wastePercentEl ? parseFloat(wastePercentEl.value || '0') : 0;
+
+  rows.forEach(function(row) {
+    var d = parseFloat(row.querySelector('input[name="hole_diameter_in"]').value || '0');
+    var depth = parseFloat(row.querySelector('input[name="hole_depth_in"]').value || '0');
+    var c = parseFloat(row.querySelector('input[name="hole_count"]').value || '0');
+    if (d > 0 && depth > 0 && c > 0) {
+      activeRows += 1;
+      totalHoles += c;
+      var perHoleCf = Math.PI * Math.pow(d / 24.0, 2) * (depth / 12.0);
+      totalCf += perHoleCf * c;
+    }
+  });
+
+  if (includeWaste && includeWaste.checked && wastePct > 0) {
+    totalCf += totalCf * (wastePct / 100.0);
+  }
+
+  var totalCy = totalCf / 27.0;
+  var bags60 = Math.ceil(totalCf / 0.45);
+
+  document.getElementById('pv_rows').textContent = String(activeRows);
+  document.getElementById('pv_holes').textContent = String(Math.round(totalHoles));
+  document.getElementById('pv_cy').textContent = totalCy.toFixed(2);
+  document.getElementById('pv_bags').textContent = String(isFinite(bags60) ? Math.max(0, bags60) : 0);
+}
+
+(function initConcreteUi() {
+  var rows = document.querySelectorAll('#holeRows .hole-row');
+  rows.forEach(bindRowInputs);
+  var includeWaste = document.getElementById('include_waste');
+  var wastePercent = document.getElementById('waste_percent');
+  if (includeWaste) includeWaste.addEventListener('change', updatePreview);
+  if (wastePercent) wastePercent.addEventListener('input', updatePreview);
+  updatePreview();
+})();
 </script>
 {% endblock %}
 

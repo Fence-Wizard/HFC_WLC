@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_root_renders_step1():
     response = client.get("/")
     assert response.status_code == 200
-    assert "Wind Load Calculator" in response.text
+    assert "Construction Calculator" in response.text
     assert "Step 1" in response.text
 
 

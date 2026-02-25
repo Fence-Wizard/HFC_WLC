@@ -1282,19 +1282,67 @@ select optgroup {
   background: var(--hfc-surface);
 }
 
+.calc-mode-btn:visited {
+  color: var(--hfc-text-secondary);
+}
+
 .calc-mode-btn.is-active {
   color: var(--hfc-blue);
   border-color: var(--hfc-blue);
   background: color-mix(in srgb, var(--hfc-blue) 12%, var(--hfc-card-bg));
 }
 
+.calc-mode-btn.is-active:visited {
+  color: var(--hfc-blue);
+}
+
 /* ── Concrete calculator rows ───────────────────────────────────────── */
+.hole-rows-wrap {
+  display: grid;
+  gap: 0.7rem;
+}
+
 .hole-row {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
-  gap: 0.55rem;
-  margin-bottom: 0.55rem;
-  align-items: center;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr auto;
+  gap: 0.65rem;
+  align-items: end;
+  border: 1px solid var(--hfc-border);
+  border-radius: var(--radius-sm);
+  background: var(--hfc-surface);
+  padding: 0.7rem;
+}
+
+.hole-field {
+  min-width: 0;
+}
+
+.hole-field label {
+  display: block;
+  font-size: 0.73rem;
+  color: var(--hfc-text-secondary);
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hole-actions .btn {
+  width: 100%;
+}
+
+.concrete-row-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.concrete-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
 }
 
 .hole-row input {
@@ -1302,8 +1350,12 @@ select optgroup {
 }
 
 @media (max-width: 900px) {
+  .concrete-preview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .hole-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 }
 
