@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="card" style="margin-bottom: 0.9rem;">
-  <div class="calc-mode-switch">
-    <a class="calc-mode-btn" href="/">Wind Load</a>
-    <a class="calc-mode-btn is-active" href="/concrete">Concrete</a>
+  <div class="calc-mode-switch calc-mode-tabs">
+    <a class="calc-mode-btn calc-tab-btn" href="/">Wind Load</a>
+    <a class="calc-mode-btn calc-tab-btn is-active" href="/concrete">Concrete</a>
   </div>
 </div>
 
@@ -29,9 +29,9 @@
       <div class="result-unit">count</div>
     </div>
     <div class="result-tile">
-      <div class="result-value" id="hero_cf">{{ "%.2f"|format(result.total_volume_cf) }}</div>
-      <div class="result-label">Total Volume</div>
-      <div class="result-unit">cf</div>
+      <div class="result-value" id="hero_waste">{{ "%.1f"|format(result.waste_percent) }}</div>
+      <div class="result-label">Waste</div>
+      <div class="result-unit">%</div>
     </div>
   </div>
 </div>
@@ -42,18 +42,22 @@
     <p>Edit hole specs here and update totals instantly.</p>
   </div>
 
-  <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
-    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustRow('Line Post',10,30,10)">+ Line Preset</button>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustRow('Terminal Post',12,36,4)">+ Terminal Preset</button>
-    <button type="button" class="btn btn-secondary btn-sm" onclick="addAdjustRow('Gate Post',16,42,2)">+ Gate Preset</button>
-  </div>
-
   <div id="adjustRows" class="hole-rows-wrap">
     {% for r in result.rows %}
     <div class="hole-row">
       <div class="hole-field">
         <label>Post Type</label>
-        <input type="text" name="post_type" value="{{ r.post_type }}" />
+        <select name="post_type">
+          {% for opt in [
+            "Line Post",
+            "Terminal Post",
+            "Gate Post",
+            "Corner Post",
+            "Custom Post"
+          ] %}
+          <option value="{{ opt }}" {% if r.post_type == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="hole-field">
         <label>Hole Diameter (in)</label>
@@ -112,7 +116,6 @@
         <th>Dia (in)</th>
         <th>Depth (in)</th>
         <th>Count</th>
-        <th>CF</th>
         <th>CY</th>
         <th>60 lb Bags</th>
       </tr>
@@ -124,28 +127,24 @@
         <td>{{ "%.1f"|format(r.hole_diameter_in) }}</td>
         <td>{{ "%.1f"|format(r.hole_depth_in) }}</td>
         <td>{{ r.hole_count }}</td>
-        <td>{{ "%.2f"|format(r.total_volume_cf) }}</td>
         <td>{{ "%.2f"|format(r.total_volume_cy) }}</td>
         <td>{{ r.bags_60lb }}</td>
       </tr>
       {% endfor %}
       <tr>
         <td colspan="4" style="text-align:right;"><b>Subtotal</b></td>
-        <td><b>{{ "%.2f"|format(result.subtotal_volume_cf) }}</b></td>
         <td><b>{{ "%.2f"|format(result.subtotal_volume_cf/27.0) }}</b></td>
         <td>-</td>
       </tr>
       {% if result.waste_percent > 0 %}
       <tr>
         <td colspan="4" style="text-align:right;">Waste ({{ "%.1f"|format(result.waste_percent) }}%)</td>
-        <td>{{ "%.2f"|format(result.waste_volume_cf) }}</td>
         <td>{{ "%.2f"|format(result.waste_volume_cf/27.0) }}</td>
         <td>-</td>
       </tr>
       {% endif %}
       <tr>
         <td colspan="4" style="text-align:right;"><b>Total</b></td>
-        <td><b>{{ "%.2f"|format(result.total_volume_cf) }}</b></td>
         <td><b>{{ "%.2f"|format(result.total_volume_cy) }}</b></td>
         <td><b>{{ result.bags_60lb }}</b></td>
       </tr>
@@ -184,6 +183,8 @@
 </div>
 
 <div class="btn-group">
+  <button type="button" class="btn btn-secondary" onclick="window.print()">Print Summary</button>
+  <button type="button" class="btn btn-secondary" onclick="saveConcretePdf()">Save PDF</button>
   <a href="/concrete" class="btn btn-secondary">&larr; Adjust Inputs</a>
   <a href="/" class="btn btn-primary">Switch to Wind Calculator</a>
 </div>
@@ -194,7 +195,14 @@ function addAdjustRow(postType, dia, depth, count) {
   var row = document.createElement('div');
   row.className = 'hole-row';
   row.innerHTML = ''
-    + '<div class="hole-field"><label>Post Type</label><input type="text" name="post_type" value="'+(postType || '')+'" /></div>'
+    + '<div class="hole-field"><label>Post Type</label>'
+    + '<select name="post_type">'
+    + '<option value="Line Post"'+((postType||'')==='Line Post'?' selected':'')+'>Line Post</option>'
+    + '<option value="Terminal Post"'+((postType||'')==='Terminal Post'?' selected':'')+'>Terminal Post</option>'
+    + '<option value="Gate Post"'+((postType||'')==='Gate Post'?' selected':'')+'>Gate Post</option>'
+    + '<option value="Corner Post"'+((postType||'')==='Corner Post'?' selected':'')+'>Corner Post</option>'
+    + '<option value="Custom Post"'+((postType||'')==='Custom Post'?' selected':'')+'>Custom Post</option>'
+    + '</select></div>'
     + '<div class="hole-field"><label>Hole Diameter (in)</label><input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" value="'+(dia || '')+'" /></div>'
     + '<div class="hole-field"><label>Hole Depth (in)</label><input type="number" name="hole_depth_in" min="6" max="144" step="1" value="'+(depth || '')+'" /></div>'
     + '<div class="hole-field"><label>Hole Count</label><input type="number" name="hole_count" min="1" max="100000" step="1" value="'+(count || '')+'" /></div>'
@@ -246,7 +254,7 @@ function renderConcreteResult(d) {
   document.getElementById('hero_total_cy').textContent = d.total_volume_cy.toFixed(2);
   document.getElementById('hero_bags').textContent = d.bags_60lb;
   document.getElementById('hero_holes').textContent = d.total_holes;
-  document.getElementById('hero_cf').textContent = d.total_volume_cf.toFixed(2);
+  document.getElementById('hero_waste').textContent = d.waste_percent.toFixed(1);
 
   var tbody = document.getElementById('hole_breakdown_body');
   var html = '';
@@ -256,21 +264,17 @@ function renderConcreteResult(d) {
       + '<td>'+r.hole_diameter_in.toFixed(1)+'</td>'
       + '<td>'+r.hole_depth_in.toFixed(1)+'</td>'
       + '<td>'+r.hole_count+'</td>'
-      + '<td>'+r.total_volume_cf.toFixed(2)+'</td>'
       + '<td>'+r.total_volume_cy.toFixed(2)+'</td>'
       + '<td>'+r.bags_60lb+'</td>'
       + '</tr>';
   });
   html += '<tr><td colspan="4" style="text-align:right;"><b>Subtotal</b></td><td><b>'
-    + d.subtotal_volume_cf.toFixed(2) + '</b></td><td><b>'
     + (d.subtotal_volume_cf / 27.0).toFixed(2) + '</b></td><td>-</td></tr>';
   if (d.waste_percent > 0) {
     html += '<tr><td colspan="4" style="text-align:right;">Waste ('+d.waste_percent.toFixed(1)+'%)</td><td>'
-      + d.waste_volume_cf.toFixed(2) + '</td><td>'
       + (d.waste_volume_cf / 27.0).toFixed(2) + '</td><td>-</td></tr>';
   }
   html += '<tr><td colspan="4" style="text-align:right;"><b>Total</b></td><td><b>'
-    + d.total_volume_cf.toFixed(2) + '</b></td><td><b>'
     + d.total_volume_cy.toFixed(2) + '</b></td><td><b>'
     + d.bags_60lb + '</b></td></tr>';
   tbody.innerHTML = html;
@@ -281,6 +285,10 @@ function renderConcreteResult(d) {
   } else {
     warn.innerHTML = '<p class="text-muted text-sm" style="margin:0;">No warnings for the current setup.</p>';
   }
+}
+
+function saveConcretePdf() {
+  window.print();
 }
 </script>
 {% endblock %}

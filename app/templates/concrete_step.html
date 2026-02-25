@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="card" style="margin-bottom: 0.9rem;">
-  <div class="calc-mode-switch">
-    <a class="calc-mode-btn" href="/">Wind Load</a>
-    <a class="calc-mode-btn is-active" href="/concrete">Concrete</a>
+  <div class="calc-mode-switch calc-mode-tabs">
+    <a class="calc-mode-btn calc-tab-btn" href="/">Wind Load</a>
+    <a class="calc-mode-btn calc-tab-btn is-active" href="/concrete">Concrete</a>
   </div>
 </div>
 
@@ -34,19 +34,22 @@
     </div>
     {% endif %}
 
-    <div class="concrete-row-toolbar">
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetRow('Line Post',10,30,10)">+ Line Preset</button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetRow('Terminal Post',12,36,4)">+ Terminal Preset</button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="addPresetRow('Gate Post',16,42,2)">+ Gate Preset</button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="clearRows()">Clear</button>
-    </div>
-
     <div id="holeRows" class="hole-rows-wrap">
       {% for r in data.rows %}
       <div class="hole-row">
         <div class="hole-field hole-post-type">
           <label>Post Type</label>
-          <input type="text" name="post_type" placeholder="Line / Terminal / Gate / Corner" value="{{ r.post_type }}" />
+          <select name="post_type">
+            {% for opt in [
+              "Line Post",
+              "Terminal Post",
+              "Gate Post",
+              "Corner Post",
+              "Custom Post"
+            ] %}
+            <option value="{{ opt }}" {% if r.post_type == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="hole-field">
           <label>Hole Diameter (in)</label>
@@ -131,16 +134,22 @@
 
 <script>
 function addRow() {
-  addPresetRow('', '', '', '');
-}
-
-function addPresetRow(postType, dia, depth, count) {
+  var postType = 'Line Post';
+  var dia = '';
+  var depth = '';
+  var count = '';
   var wrap = document.getElementById('holeRows');
   var row = document.createElement('div');
   row.className = 'hole-row';
   row.innerHTML = ''
     + '<div class="hole-field hole-post-type"><label>Post Type</label>'
-    + '<input type="text" name="post_type" placeholder="Line / Terminal / Gate / Corner" value="'+(postType || '')+'" /></div>'
+    + '<select name="post_type">'
+    + '<option value="Line Post">Line Post</option>'
+    + '<option value="Terminal Post">Terminal Post</option>'
+    + '<option value="Gate Post">Gate Post</option>'
+    + '<option value="Corner Post">Corner Post</option>'
+    + '<option value="Custom Post">Custom Post</option>'
+    + '</select></div>'
     + '<div class="hole-field"><label>Hole Diameter (in)</label>'
     + '<input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="e.g. 12" value="'+(dia || '')+'" required /></div>'
     + '<div class="hole-field"><label>Hole Depth (in)</label>'
@@ -169,7 +178,7 @@ function clearRows() {
 }
 
 function bindRowInputs(scope) {
-  var inputs = scope.querySelectorAll('input');
+  var inputs = scope.querySelectorAll('input, select');
   inputs.forEach(function(inp) {
     inp.addEventListener('input', updatePreview);
     inp.addEventListener('change', updatePreview);

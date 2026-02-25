@@ -94,7 +94,7 @@ async def concrete_step(request: Request):
             "hole_count": 10,
         },
         {
-            "post_type": "Terminal/Gate Post",
+            "post_type": "Terminal Post",
             "hole_diameter_in": 12,
             "hole_depth_in": 36,
             "hole_count": 4,

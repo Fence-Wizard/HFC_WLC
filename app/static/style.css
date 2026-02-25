@@ -1296,6 +1296,28 @@ select optgroup {
   color: var(--hfc-blue);
 }
 
+.calc-mode-tabs {
+  width: 100%;
+  background: var(--hfc-surface);
+  border: 1px solid var(--hfc-border);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+}
+
+.calc-tab-btn {
+  flex: 1;
+  text-align: center;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+}
+
+.calc-tab-btn.is-active {
+  background: var(--hfc-card-bg);
+  border-color: var(--hfc-blue);
+  box-shadow: var(--shadow-sm);
+}
+
 /* ── Concrete calculator rows ───────────────────────────────────────── */
 .hole-rows-wrap {
   display: grid;
@@ -1414,6 +1436,27 @@ select optgroup {
 
   .hole-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .topbar,
+  .theme-toggle,
+  .calc-mode-switch,
+  .btn,
+  details > summary {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    page-break-inside: avoid;
   }
 }
 
