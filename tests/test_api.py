@@ -98,3 +98,54 @@ def test_api_calculate():
     data = response.json()
     assert data["design_pressure"] > 0
     assert data["total_load"] > 0
+
+
+def test_api_concrete_estimate():
+    payload = {
+        "hole_specs": [
+            {
+                "post_type": "Line Post",
+                "hole_diameter_in": 10,
+                "hole_depth_in": 30,
+                "hole_count": 10,
+            },
+            {
+                "post_type": "Terminal",
+                "hole_diameter_in": 12,
+                "hole_depth_in": 36,
+                "hole_count": 4,
+            },
+        ],
+        "include_waste": True,
+        "waste_percent": 10.0,
+    }
+    response = client.post("/api/v1/concrete-estimate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_holes"] == 14
+    assert data["total_volume_cy"] > 0
+    assert data["bags_60lb"] > 0
+
+
+def test_concrete_page_renders():
+    response = client.get("/concrete")
+    assert response.status_code == 200
+    assert "Fence Concrete Calculator" in response.text
+
+
+def test_concrete_review_flow():
+    response = client.post(
+        "/concrete/review",
+        data={
+            "post_type": ["Line Post", "Terminal"],
+            "hole_diameter_in": ["10", "12"],
+            "hole_depth_in": ["30", "36"],
+            "hole_count": ["10", "4"],
+            "include_waste": "on",
+            "waste_percent": "10",
+            "project_name": "Concrete Test",
+        },
+    )
+    assert response.status_code == 200
+    assert "Concrete Results" in response.text
+    assert "Hole Breakdown" in response.text

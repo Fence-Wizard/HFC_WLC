@@ -6,8 +6,11 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from windcalc.concrete import calculate_concrete_estimate
 from windcalc.engine import calculate, calculate_project, calculate_wind_load
 from windcalc.schemas import (
+    ConcreteEstimateInput,
+    ConcreteEstimateOutput,
     EstimateInput,
     EstimateOutput,
     ProjectInput,
@@ -32,6 +35,7 @@ async def api_root():
             "/api/calculate",
             "/api/health",
             "/api/v1/estimate",
+            "/api/v1/concrete-estimate",
         ],
     }
 
@@ -85,6 +89,21 @@ async def estimate(request: EstimateInput):
         raise HTTPException(status_code=400, detail=f"Estimate error: {e!s}") from e
     except Exception:
         logger.exception("Unexpected error during estimate")
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred"
+        ) from None
+
+
+@v1_router.post("/concrete-estimate", response_model=ConcreteEstimateOutput)
+async def concrete_estimate(request: ConcreteEstimateInput):
+    """Calculate fence concrete takeoff for one or more hole-spec rows."""
+    try:
+        return calculate_concrete_estimate(request)
+    except ValueError as e:
+        logger.warning("Concrete estimate error: %s", e)
+        raise HTTPException(status_code=400, detail=f"Concrete estimate error: {e!s}") from e
+    except Exception:
+        logger.exception("Unexpected error during concrete estimate")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
         ) from None

@@ -13,9 +13,11 @@ from fastapi.templating import Jinja2Templates
 
 from windcalc import EstimateInput, calculate
 from windcalc.asce7 import FENCE_TYPES as ASCE_FENCE_TYPES
+from windcalc.concrete import calculate_concrete_estimate
 from windcalc.post_catalog import POST_TYPES
 from windcalc.report import draw_pdf
 from windcalc.risk import classify_risk
+from windcalc.schemas import ConcreteEstimateInput, ConcreteHoleSpecInput
 from windcalc.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,145 @@ async def index(request: Request):
         request,
         "wizard_step1.html",
         {"data": {}, "errors": []},
+    )
+
+
+@router.get("/concrete", response_class=HTMLResponse)
+async def concrete_step(request: Request):
+    """Fence concrete takeoff input page."""
+    default_rows = [
+        {
+            "post_type": "Line Post",
+            "hole_diameter_in": 10,
+            "hole_depth_in": 30,
+            "hole_count": 10,
+        },
+        {
+            "post_type": "Terminal/Gate Post",
+            "hole_diameter_in": 12,
+            "hole_depth_in": 36,
+            "hole_count": 4,
+        },
+    ]
+    return templates.TemplateResponse(
+        request,
+        "concrete_step.html",
+        {
+            "data": {
+                "rows": default_rows,
+                "include_waste": True,
+                "waste_percent": 10,
+                "project_name": "",
+                "location": "",
+                "estimator": "",
+            },
+            "errors": [],
+            "post_options": POST_OPTIONS,
+        },
+    )
+
+
+@router.post("/concrete/review", response_class=HTMLResponse)
+async def concrete_review(request: Request):
+    """Concrete takeoff results page."""
+    form = await request.form()
+
+    post_types = form.getlist("post_type")
+    diameters = form.getlist("hole_diameter_in")
+    depths = form.getlist("hole_depth_in")
+    counts = form.getlist("hole_count")
+
+    rows_data: list[dict[str, str | float | int]] = []
+    hole_specs: list[ConcreteHoleSpecInput] = []
+    errors: list[str] = []
+
+    row_count = max(len(post_types), len(diameters), len(depths), len(counts))
+    for idx in range(row_count):
+        post_type = (post_types[idx] if idx < len(post_types) else "").strip()
+        diameter_raw = (diameters[idx] if idx < len(diameters) else "").strip()
+        depth_raw = (depths[idx] if idx < len(depths) else "").strip()
+        count_raw = (counts[idx] if idx < len(counts) else "").strip()
+
+        if not any([post_type, diameter_raw, depth_raw, count_raw]):
+            continue
+
+        rows_data.append(
+            {
+                "post_type": post_type,
+                "hole_diameter_in": diameter_raw,
+                "hole_depth_in": depth_raw,
+                "hole_count": count_raw,
+            }
+        )
+
+        try:
+            hole_specs.append(
+                ConcreteHoleSpecInput(
+                    post_type=post_type or "Post",
+                    hole_diameter_in=float(diameter_raw),
+                    hole_depth_in=float(depth_raw),
+                    hole_count=int(count_raw),
+                )
+            )
+        except ValueError:
+            errors.append(
+                f"Row {idx + 1}: enter valid numeric values for diameter, depth, and count."
+            )
+        except Exception as exc:
+            errors.append(f"Row {idx + 1}: {exc!s}")
+
+    include_waste = str(form.get("include_waste", "")).lower() in {"on", "true", "1", "yes"}
+    waste_percent_raw = str(form.get("waste_percent", "10")).strip()
+    project_name = str(form.get("project_name", "")).strip()
+    location = str(form.get("location", "")).strip()
+    estimator = str(form.get("estimator", "")).strip()
+
+    try:
+        waste_percent = float(waste_percent_raw or "10")
+    except ValueError:
+        waste_percent = 10.0
+        errors.append("Waste percent must be a number.")
+
+    data = {
+        "rows": rows_data or [
+            {"post_type": "", "hole_diameter_in": "", "hole_depth_in": "", "hole_count": ""}
+        ],
+        "include_waste": include_waste,
+        "waste_percent": waste_percent,
+        "project_name": project_name,
+        "location": location,
+        "estimator": estimator,
+    }
+
+    if not hole_specs:
+        errors.append("Add at least one valid hole row.")
+
+    if errors:
+        return templates.TemplateResponse(
+            request,
+            "concrete_step.html",
+            {"data": data, "errors": errors, "post_options": POST_OPTIONS},
+            status_code=400,
+        )
+
+    inp = ConcreteEstimateInput(
+        hole_specs=hole_specs,
+        include_waste=include_waste,
+        waste_percent=waste_percent,
+        project_name=project_name,
+        location=location,
+        estimator=estimator,
+    )
+    out = calculate_concrete_estimate(inp)
+
+    return templates.TemplateResponse(
+        request,
+        "concrete_review.html",
+        {
+            "data": data,
+            "result": out,
+            "result_json": out.model_dump(),
+        },
     )
 
 

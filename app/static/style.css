@@ -1263,6 +1263,50 @@ select optgroup {
   }
 }
 
+/* ── Calculator mode switch ─────────────────────────────────────────── */
+.calc-mode-switch {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.calc-mode-btn {
+  display: inline-block;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--hfc-border);
+  border-radius: var(--radius-sm);
+  color: var(--hfc-text-secondary);
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  background: var(--hfc-surface);
+}
+
+.calc-mode-btn.is-active {
+  color: var(--hfc-blue);
+  border-color: var(--hfc-blue);
+  background: color-mix(in srgb, var(--hfc-blue) 12%, var(--hfc-card-bg));
+}
+
+/* ── Concrete calculator rows ───────────────────────────────────────── */
+.hole-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+  align-items: center;
+}
+
+.hole-row input {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .hole-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* ── Smooth transitions for theme change ─────────────────────────── */
 .card,
 .progress-bar,

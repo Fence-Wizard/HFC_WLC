@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Concrete Results | HFC Windload Calculator{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 0.9rem;">
+  <div class="calc-mode-switch">
+    <a class="calc-mode-btn" href="/">Wind Load</a>
+    <a class="calc-mode-btn is-active" href="/concrete">Concrete</a>
+  </div>
+</div>
+
+<div class="results-grid">
+  <div class="result-tile">
+    <div class="result-value">{{ "%.2f"|format(result.total_volume_cy) }}</div>
+    <div class="result-label">Total Concrete</div>
+    <div class="result-unit">CY</div>
+  </div>
+  <div class="result-tile">
+    <div class="result-value">{{ result.bags_60lb }}</div>
+    <div class="result-label">60 lb Bags</div>
+    <div class="result-unit">bags</div>
+  </div>
+  <div class="result-tile">
+    <div class="result-value">{{ result.total_holes }}</div>
+    <div class="result-label">Total Holes</div>
+    <div class="result-unit">count</div>
+  </div>
+  <div class="result-tile">
+    <div class="result-value">{{ "%.2f"|format(result.total_volume_cf) }}</div>
+    <div class="result-label">Total Volume</div>
+    <div class="result-unit">cf</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0.5rem;">
+    <h2>Hole Breakdown</h2>
+    {% if data.project_name %}
+    <p>{{ data.project_name }}{% if data.location %} &mdash; {{ data.location }}{% endif %}</p>
+    {% endif %}
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Post Type</th>
+        <th>Dia (in)</th>
+        <th>Depth (in)</th>
+        <th>Count</th>
+        <th>CF</th>
+        <th>CY</th>
+        <th>60 lb Bags</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in result.rows %}
+      <tr>
+        <td style="text-align:left;">{{ r.post_type }}</td>
+        <td>{{ "%.1f"|format(r.hole_diameter_in) }}</td>
+        <td>{{ "%.1f"|format(r.hole_depth_in) }}</td>
+        <td>{{ r.hole_count }}</td>
+        <td>{{ "%.2f"|format(r.total_volume_cf) }}</td>
+        <td>{{ "%.2f"|format(r.total_volume_cy) }}</td>
+        <td>{{ r.bags_60lb }}</td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td colspan="4" style="text-align:right;"><b>Subtotal</b></td>
+        <td><b>{{ "%.2f"|format(result.subtotal_volume_cf) }}</b></td>
+        <td><b>{{ "%.2f"|format(result.subtotal_volume_cf/27.0) }}</b></td>
+        <td>-</td>
+      </tr>
+      {% if result.waste_percent > 0 %}
+      <tr>
+        <td colspan="4" style="text-align:right;">Waste ({{ "%.1f"|format(result.waste_percent) }}%)</td>
+        <td>{{ "%.2f"|format(result.waste_volume_cf) }}</td>
+        <td>{{ "%.2f"|format(result.waste_volume_cf/27.0) }}</td>
+        <td>-</td>
+      </tr>
+      {% endif %}
+      <tr>
+        <td colspan="4" style="text-align:right;"><b>Total</b></td>
+        <td><b>{{ "%.2f"|format(result.total_volume_cf) }}</b></td>
+        <td><b>{{ "%.2f"|format(result.total_volume_cy) }}</b></td>
+        <td><b>{{ result.bags_60lb }}</b></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+{% if result.warnings %}
+<div class="card">
+  <h3 style="margin-top:0;">Warnings</h3>
+  {% for w in result.warnings %}
+  <div class="inline-warning">{{ w }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+  <details>
+    <summary>Calculation Details</summary>
+    <div class="detail-content" style="margin-top: 0.75rem;">
+      <p class="text-sm" style="margin-top:0;">Per hole formula: <code>V = pi * (d/24)^2 * (depth/12)</code> cubic feet</p>
+      <ul style="font-size: 0.85rem; padding-left: 1rem;">
+        {% for a in result.assumptions %}
+        <li>{{ a }}</li>
+        {% endfor %}
+      </ul>
+      {% if data.estimator %}
+      <p class="text-sm"><b>Estimator:</b> {{ data.estimator }}</p>
+      {% endif %}
+    </div>
+  </details>
+</div>
+
+<div class="btn-group">
+  <a href="/concrete" class="btn btn-secondary">&larr; Adjust Inputs</a>
+  <a href="/" class="btn btn-primary">Switch to Wind Calculator</a>
+</div>
+{% endblock %}
+

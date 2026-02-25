@@ -296,6 +296,62 @@ class EstimateOutput(BaseModel):
     )
 
 
+# ── Fence concrete takeoff schemas ────────────────────────────────────
+class ConcreteHoleSpecInput(BaseModel):
+    """Single fence hole specification row for concrete estimating."""
+
+    post_type: str = Field(default="", description="User-facing post type label")
+    hole_diameter_in: float = Field(..., gt=0, le=60, description="Hole diameter (in)")
+    hole_depth_in: float = Field(..., gt=0, le=144, description="Hole depth (in)")
+    hole_count: int = Field(..., ge=1, le=100000, description="Number of holes")
+
+
+class ConcreteEstimateInput(BaseModel):
+    """Input model for fence concrete takeoff."""
+
+    hole_specs: list[ConcreteHoleSpecInput] = Field(..., min_length=1)
+    include_waste: bool = Field(
+        default=False, description="Include waste factor in totals"
+    )
+    waste_percent: float = Field(
+        default=10.0,
+        ge=0.0,
+        le=30.0,
+        description="Waste allowance percent applied to concrete volume",
+    )
+    project_name: str = ""
+    location: str = ""
+    estimator: str = ""
+
+
+class ConcreteHoleSpecOutput(BaseModel):
+    """Calculated output for a single hole specification row."""
+
+    post_type: str = ""
+    hole_diameter_in: float = 0.0
+    hole_depth_in: float = 0.0
+    hole_count: int = 0
+    volume_per_hole_cf: float = 0.0
+    total_volume_cf: float = 0.0
+    total_volume_cy: float = 0.0
+    bags_60lb: int = 0
+
+
+class ConcreteEstimateOutput(BaseModel):
+    """Calculated concrete takeoff summary."""
+
+    rows: list[ConcreteHoleSpecOutput] = Field(default_factory=list)
+    total_holes: int = 0
+    subtotal_volume_cf: float = 0.0
+    waste_percent: float = 0.0
+    waste_volume_cf: float = 0.0
+    total_volume_cf: float = 0.0
+    total_volume_cy: float = 0.0
+    bags_60lb: int = 0
+    assumptions: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 # ── Multi-segment schemas ────────────────────────────────────────────
 
 class SegmentInput(BaseModel):
@@ -351,6 +407,10 @@ class ProjectOutput(BaseModel):
 
 __all__ = [
     "BlockResult",
+    "ConcreteEstimateInput",
+    "ConcreteEstimateOutput",
+    "ConcreteHoleSpecInput",
+    "ConcreteHoleSpecOutput",
     "DeflectionResult",
     "DesignParameters",
     "EstimateInput",

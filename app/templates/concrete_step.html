@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Concrete Calculator | HFC Windload Calculator{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 0.9rem;">
+  <div class="calc-mode-switch">
+    <a class="calc-mode-btn" href="/">Wind Load</a>
+    <a class="calc-mode-btn is-active" href="/concrete">Concrete</a>
+  </div>
+</div>
+
+<form method="post" action="/concrete/review" id="concreteForm">
+  <div class="card">
+    <div class="card-header">
+      <h2>Fence Concrete Calculator</h2>
+      <p>Enter one or more hole specs to get total CY and 60 lb bag count.</p>
+    </div>
+
+    {% if errors %}
+    <div style="margin-bottom: 0.75rem;">
+      {% for e in errors %}
+      <div class="inline-warning">{{ e }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div id="holeRows">
+      {% for r in data.rows %}
+      <div class="hole-row">
+        <input type="text" name="post_type" placeholder="Post type (Line/Terminal/Gate)" value="{{ r.post_type }}" />
+        <input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="Dia (in)" value="{{ r.hole_diameter_in }}" required />
+        <input type="number" name="hole_depth_in" min="6" max="144" step="1" placeholder="Depth (in)" value="{{ r.hole_depth_in }}" required />
+        <input type="number" name="hole_count" min="1" max="100000" step="1" placeholder="# Holes" value="{{ r.hole_count }}" required />
+        <button type="button" class="btn btn-secondary btn-sm" onclick="removeRow(this)">Remove</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div style="display: flex; gap: 0.6rem; margin: 0.5rem 0 1rem;">
+      <button type="button" class="btn btn-secondary" onclick="addRow()">+ Add Row</button>
+    </div>
+
+    <details>
+      <summary>Project &amp; Waste Settings</summary>
+      <div class="detail-content" style="margin-top: 0.7rem;">
+        <div class="form-group">
+          <label for="project_name">Project Name</label>
+          <input id="project_name" name="project_name" type="text" value="{{ data.project_name or '' }}" />
+        </div>
+        <div class="form-group">
+          <label for="location">Location</label>
+          <input id="location" name="location" type="text" value="{{ data.location or '' }}" />
+        </div>
+        <div class="form-group">
+          <label for="estimator">Estimator</label>
+          <input id="estimator" name="estimator" type="text" value="{{ data.estimator or '' }}" />
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="include_waste" name="include_waste" {% if data.include_waste %}checked{% endif %} />
+            Include waste allowance
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="waste_percent">Waste %</label>
+          <input id="waste_percent" name="waste_percent" type="number" min="0" max="30" step="0.5" value="{{ data.waste_percent or 10 }}" />
+        </div>
+      </div>
+    </details>
+
+    <div class="btn-group">
+      <button type="submit" class="btn btn-primary btn-lg">Calculate Concrete</button>
+    </div>
+  </div>
+</form>
+
+<script>
+function addRow() {
+  var wrap = document.getElementById('holeRows');
+  var row = document.createElement('div');
+  row.className = 'hole-row';
+  row.innerHTML = ''
+    + '<input type="text" name="post_type" placeholder="Post type (Line/Terminal/Gate)" />'
+    + '<input type="number" name="hole_diameter_in" min="4" max="60" step="0.5" placeholder="Dia (in)" required />'
+    + '<input type="number" name="hole_depth_in" min="6" max="144" step="1" placeholder="Depth (in)" required />'
+    + '<input type="number" name="hole_count" min="1" max="100000" step="1" placeholder="# Holes" required />'
+    + '<button type="button" class="btn btn-secondary btn-sm" onclick="removeRow(this)">Remove</button>';
+  wrap.appendChild(row);
+}
+
+function removeRow(btn) {
+  var wrap = document.getElementById('holeRows');
+  if (wrap.children.length <= 1) return;
+  btn.closest('.hole-row').remove();
+}
+</script>
+{% endblock %}
+
