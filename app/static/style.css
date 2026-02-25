@@ -1310,6 +1310,7 @@ select optgroup {
   padding: 0.55rem 0.85rem;
   border: 1px solid transparent;
   border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
 }
 
 .calc-tab-btn.is-active {

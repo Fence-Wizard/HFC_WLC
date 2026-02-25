@@ -30,9 +30,13 @@
 
 {% block content %}
 <div class="card" style="margin-bottom: 0.9rem;">
-  <div class="calc-mode-switch calc-mode-tabs">
-    <a class="calc-mode-btn calc-tab-btn is-active" href="/">Wind Load</a>
-    <a class="calc-mode-btn calc-tab-btn" href="/concrete">Concrete</a>
+  <div class="calc-mode-switch calc-mode-tabs" role="tablist" aria-label="Calculator mode">
+    <button type="button" class="calc-mode-btn calc-tab-btn is-active" aria-current="page" onclick="window.location.href='/'">
+      Wind Load
+    </button>
+    <button type="button" class="calc-mode-btn calc-tab-btn" onclick="window.location.href='/concrete'">
+      Concrete
+    </button>
   </div>
 </div>
 <form method="post" action="/step2">
